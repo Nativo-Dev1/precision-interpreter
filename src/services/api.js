@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 
 // ✅ Change to match your backend IP
 export const API = axios.create({
-  baseURL: 'http://192.168.1.15:5000',
+  baseURL: 'https://nativo-backend.onrender.com',
 });
 
 // Helper: pick MIME type by file extension

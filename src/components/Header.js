@@ -1,3 +1,4 @@
+// src/components/Header.js
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
@@ -14,11 +15,13 @@ export default function Header() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>
-        {coloredLetters.map(({ letter, color }, index) => (
-          <Text key={index} style={{ color }}>{letter}</Text>
+        {coloredLetters.map(({ letter, color }, i) => (
+          <Text key={i} style={{ color }}>{letter}</Text>
         ))}
       </Text>
-      <Text style={styles.subtitle}>Live Interpretation Between Languages</Text>
+      <Text style={styles.subtitle}>
+        Real-time Interpretation Between Languages
+      </Text>
     </View>
   );
 }
@@ -28,7 +31,7 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     paddingBottom: 16,
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: 'transparent',  // let the gradient show through
   },
   title: {
     fontSize: 28,

@@ -12,7 +12,7 @@ export default ({ config }) => {
       // App identity
       name: "Nativo Interpreter",
       slug: "frontend",         // must match your EAS project slug
-      version: "1.0.15",
+      version: "1.0.28",
 
       // Plugins
       plugins: [
@@ -23,7 +23,7 @@ export default ({ config }) => {
       android: {
         ...android,
         package: android.package || "com.lornedev.frontend",
-        versionCode: 16,
+        versionCode: 29,
         adaptiveIcon: android.adaptiveIcon || {
           foregroundImage: "./assets/adaptive-icon.png",
           backgroundColor: "#ffffff"

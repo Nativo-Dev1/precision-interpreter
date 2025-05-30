@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  Button,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,17 +27,22 @@ const LANGPAIR_KEY = 'nativoLangPair';
 const HISTORY_KEY  = 'nativoHistory';
 
 export default function PhotoTranslateScreen() {
-  const [imageUri, setImageUri]       = useState(null);
-  const [original, setOriginal]       = useState('');
-  const [translated, setTranslated]   = useState('');
-  const [loading, setLoading]         = useState(false);
-  const [sourceLang, setSourceLang]   = useState(null);
-  const [targetLang, setTargetLang]   = useState(null);
+  const [imageUri, setImageUri]     = useState(null);
+  const [original, setOriginal]     = useState('');
+  const [translated, setTranslated] = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [sourceLang, setSourceLang] = useState(null);
+  const [targetLang, setTargetLang] = useState(null);
+  const [error, setError]           = useState(null);
 
   const isFocused = useIsFocused();
-  const { quota, loading: quotaLoading, refreshQuota } = useContext(QuotaContext);
+  const { quota: rawQuota, loading: quotaLoading, refreshQuota } = useContext(QuotaContext);
+  const quota = rawQuota || {};
 
-  // Load the locked pair from HomeScreen
+  // Only show scans here
+  const remainingScans = quota.remainingScans ?? 0;
+
+  // Load locked language pair from HomeScreen
   const loadLangPair = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(LANGPAIR_KEY);
@@ -50,38 +56,72 @@ export default function PhotoTranslateScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadLangPair();
-  }, [loadLangPair]);
+  // Initial and on-focus load of lang pair
+  useEffect(() => { loadLangPair(); }, [loadLangPair]);
+  useEffect(() => { if (isFocused) loadLangPair(); }, [isFocused, loadLangPair]);
 
+  // Fetch quota on mount, handle error
   useEffect(() => {
-    if (isFocused) loadLangPair();
-  }, [isFocused, loadLangPair]);
+    (async () => {
+      try {
+        await refreshQuota();
+      } catch (e) {
+        console.warn('Quota fetch failed', e);
+        setError('Unable to load scan quota. Tap retry.');
+      }
+    })();
+  }, []);
 
-  if (quotaLoading) {
-    return <ActivityIndicator style={{ flex: 1, justifyContent: 'center' }} />;
+  // Show spinner while the initial quota is loading
+  if (quotaLoading && !rawQuota) {
+    return <ActivityIndicator style={{ flex:1 }} size="large" />;
   }
+
+  // Error retry UI
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>{error}</Text>
+        <Button title="Retry" onPress={async () => {
+          setError(null);
+          try {
+            await refreshQuota();
+          } catch (e) {
+            console.warn('Quota retry failed', e);
+            setError('Still unable to load quota.');
+          }
+        }} />
+      </View>
+    );
+  }
+
+  // Handler to launch camera
   const pickImage = async () => {
-    if (quota.remainingScans < 1) {
-      return Alert.alert(
-        'Out of scans',
-        'You’ve used your camera scans. Tap “Buy more” to add more scans.'
-      );
-    }
+    // Quota check, skipped in dev
+    //if (!__DEV__ && remainingScans < 1) {
+    //return Alert.alert(
+    //'Out of scans',
+    //'You’ve used your camera scans. Tap “Buy more” to add more scans.'
+    //);
+    //}
+
     if (!sourceLang || !targetLang) {
       return Alert.alert(
         'Select language first',
         'Go back to Home and lock your language pair.'
       );
     }
+
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       return Alert.alert('Permission required', 'Camera access is needed.');
     }
+
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (result.canceled || !result.assets?.length) {
-      return Alert.alert('Error', 'Could not get image URI.');
+    if (result.cancelled || !result.assets?.length) {
+      return Alert.alert('Error', 'Could not get image.');
     }
+
     const uri = result.assets[0].uri;
     setImageUri(uri);
     setOriginal('');
@@ -89,22 +129,22 @@ export default function PhotoTranslateScreen() {
     processImage(uri);
   };
 
+  // Handler to upload and process OCR
   const processImage = async (uri) => {
     setLoading(true);
     const fileUri =
       Platform.OS === 'android' && !uri.startsWith('file://')
         ? `file://${uri}`
         : uri;
-
     try {
-      // **Reverse direction**: translate from targetLang → sourceLang
+      // Reverse direction: target → source
       const resp = await uploadImageForOcr(fileUri, targetLang, sourceLang);
       if (!resp.success) throw new Error(resp.error || 'Server error');
 
       setOriginal(resp.original);
       setTranslated(resp.translated);
 
-      // ── Save to history ────────────────────────────────────────
+      // Save to history
       try {
         const entry = {
           original:   resp.original,
@@ -121,9 +161,9 @@ export default function PhotoTranslateScreen() {
       } catch (e) {
         console.warn('Failed to save photo history', e);
       }
-      // ───────────────────────────────────────────────────────────
 
-      refreshQuota();
+      // Refresh quota
+      await refreshQuota();
     } catch (err) {
       console.error('[PhotoTranslate ERROR]', err);
       Alert.alert('Error', err.message);
@@ -131,13 +171,17 @@ export default function PhotoTranslateScreen() {
       setLoading(false);
     }
   };
+
+  // Determine disabled state: loading, no language selected, or no scans left (in prod)
+  const isDisabled = loading || !sourceLang;
+
   return (
     <ScreenWrapper>
       <Header title="Photo Translate" />
 
-      <Text style={styles.scanCount}>📷 {quota.remainingScans} scans left</Text>
+      {/* Scan count */}
+      <Text style={styles.scanCount}>📷 {remainingScans} scans left</Text>
 
-      {/* Show reversed flow label */}
       {sourceLang && targetLang && (
         <Text style={styles.langFlowLabel}>
           {targetLang} → {sourceLang}
@@ -146,9 +190,12 @@ export default function PhotoTranslateScreen() {
 
       <View style={styles.container}>
         <TouchableOpacity
-          style={[styles.cameraButton, (loading || !sourceLang) && { opacity: 0.5 }]}
+          style={[
+            styles.cameraButton,
+            isDisabled && styles.disabledButton
+          ]}
           onPress={pickImage}
-          disabled={loading || !sourceLang}
+          disabled={isDisabled}
         >
           <Ionicons name="camera-outline" size={28} color="white" />
           <Text style={styles.cameraText}>Take Photo</Text>
@@ -182,27 +229,73 @@ export default function PhotoTranslateScreen() {
 }
 
 const styles = StyleSheet.create({
-  scanCount:     { margin: 16, fontSize: 16 },
+  scanCount: {
+    textAlign:      'center',
+    fontSize:       16,
+    marginVertical: 8,
+    color:          '#1e293b',
+  },
   langFlowLabel: {
-    textAlign:  'center',
-    fontSize:   16,
-    fontWeight: '600',
-    color:      '#3b82f6',
+    textAlign:    'center',
+    fontSize:     16,
+    fontWeight:   '600',
+    color:        '#3b82f6',
     marginBottom: 12,
   },
-  container:     { flex:1, padding:16, alignItems:'stretch' },
-  cameraButton:  {
-    flexDirection:   'row',
-    backgroundColor: '#3b82f6',
-    paddingVertical: 12,
-    paddingHorizontal:20,
-    borderRadius:    8,
-    alignItems:      'center',
-    alignSelf:       'center',
+  container: {
+    flex:           1,
+    padding:        16,
+    alignItems:     'stretch',
   },
-  cameraText:    { color:'white', marginLeft:8, fontWeight:'600', fontSize:16 },
-  preview:       { width:'100%', height:'35%', marginTop:16, borderRadius:8 },
-  textContainer: { flex:1, width:'100%', marginTop:16 },
-  label:         { fontWeight:'700', color:'#334155', marginBottom:4, fontSize:14 },
-  text:          { color:'#1e293b', lineHeight:22, fontSize:16 },
+  cameraButton: {
+    flexDirection:    'row',
+    backgroundColor:  '#3b82f6',
+    paddingVertical:  12,
+    paddingHorizontal:20,
+    borderRadius:     8,
+    alignItems:       'center',
+    alignSelf:        'center',
+  },
+  disabledButton: {
+    opacity: 0.4,
+  },
+  cameraText: {
+    color:      'white',
+    marginLeft: 8,
+    fontWeight: '600',
+    fontSize:   16,
+  },
+  preview: {
+    width:       '100%',
+    height:      '35%',
+    marginTop:   16,
+    borderRadius:8,
+  },
+  textContainer: {
+    flex:       1,
+    width:      '100%',
+    marginTop:  16,
+  },
+  label: {
+    fontWeight:  '700',
+    color:       '#334155',
+    marginBottom:4,
+    fontSize:    14,
+  },
+  text: {
+    color:      '#1e293b',
+    lineHeight: 22,
+    fontSize:   16,
+  },
+  center: {
+    flex:           1,
+    justifyContent: 'center',
+    alignItems:     'center',
+    padding:        16,
+  },
+  error: {
+    color:        'red',
+    textAlign:    'center',
+    marginBottom: 12,
+  },
 });

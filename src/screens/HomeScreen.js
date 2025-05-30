@@ -1,12 +1,28 @@
 // src/screens/HomeScreen.js
-// Scroll and lock, press to rec.
+// Scroll and lock, press to record.
 
-import React, { useEffect, useState, useRef, useContext, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useContext,
+  useCallback,
+} from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert,
-  ScrollView, FlatList, Modal, Pressable,
-  ActivityIndicator, KeyboardAvoidingView, TextInput,
-  Platform, PermissionsAndroid
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  FlatList,
+  Modal,
+  Pressable,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  TextInput,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,23 +39,41 @@ import { SETTINGS_KEY, LANGPAIR_KEY } from '../constants/storageKeys';
 import { uploadAudio, uploadText } from '../services/api';
 import { QuotaContext } from '../contexts/QuotaContext';
 
-const ITEM_HEIGHT = 144;
+const ITEM_HEIGHT = 100;
 const HISTORY_KEY  = 'nativoHistory';
+
 export default function HomeScreen() {
-  const [lang1, setLang1] = useState(languages[0]);
-  const [lang2, setLang2] = useState(languages[1]);
-  const [locked, setLocked] = useState(false);
-  const [count1, setCount1] = useState(null);
-  const [count2, setCount2] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [inFlight, setInFlight] = useState(false);
-  const [translation, setTranslation] = useState(null);
-
-  const [leftChatModal, setLeftChatModal] = useState(false);
+  // State & refs
+  const [lang1, setLang1]                   = useState(languages[0]);
+  const [lang2, setLang2]                   = useState(languages[1]);
+  const [locked, setLocked]                 = useState(false);
+  const [count1, setCount1]                 = useState(null);
+  const [count2, setCount2]                 = useState(null);
+  const [loading, setLoading]               = useState(false);
+  const [inFlight, setInFlight]             = useState(false);
+  const [translation, setTranslation]       = useState(null);
+  const [leftChatModal, setLeftChatModal]   = useState(false);
   const [rightChatModal, setRightChatModal] = useState(false);
-  const [leftChatInput, setLeftChatInput] = useState('');
+  const [leftChatInput, setLeftChatInput]   = useState('');
   const [rightChatInput, setRightChatInput] = useState('');
+  const [storeVisible, setStoreVisible]     = useState(false);
 
+  // Prevent rapid re-taps
+  const recordLock = useRef({ left: false, right: false });
+  const lastAction = useRef(0);
+  const stopped1   = useRef(false);
+  const stopped2   = useRef(false);
+  const timer      = useRef(null);
+  const isFocused  = useIsFocused();
+
+  // Stub IAP products until real setup
+  const products = [
+    { productId: 'bundle_starter_30min10scan', title: 'Starter Pack', description: '30 min voice + 10 scans', priceString: '$2.99' },
+    { productId: 'bundle_regular_60min25scan', title: 'Regular Pack', description: '60 min voice + 25 scans', priceString: '$4.99' },
+    { productId: 'bundle_pro_120min50scan',     title: 'Pro Pack',     description: '120 min voice + 50 scans', priceString: '$8.99' },
+  ];
+
+  // Settings
   const [settings, setSettings] = useState({
     speaker1Gender: 'neutral',
     speaker2Gender: 'neutral',
@@ -48,19 +82,14 @@ export default function HomeScreen() {
     recordDuration:  5,
   });
 
-  const stopped1 = useRef(false);
-  const stopped2 = useRef(false);
-  const timer    = useRef(null);
-  const isFocused= useIsFocused();
+  // Quota context
+  const { quota: rawQuota, loading: quotaLoading, refreshQuota } = useContext(QuotaContext);
+  const quota = rawQuota || {};
+  const effectiveQuota = __DEV__
+    ? { remainingSeconds: Number.MAX_SAFE_INTEGER, interpretationsLeft: Number.MAX_SAFE_INTEGER }
+    : quota;
 
-  const { quota, loading: quotaLoading, refreshQuota } = useContext(QuotaContext);
-  const [storeVisible, setStoreVisible]               = useState(false);
-
-  const products = [
-    { productId: 'bundle_starter_30min10scan', title: 'Starter Pack', description: '30 min voice + 10 scans', priceString: '$2.99' },
-    { productId: 'bundle_regular_60min25scan', title: 'Regular Pack', description: '60 min voice + 25 scans', priceString: '$4.99' },
-    { productId: 'bundle_pro_120min50scan',   title: 'Pro Pack',     description: '120 min voice + 50 scans', priceString: '$8.99' },
-  ];
+  // Load settings
   const loadSettings = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(SETTINGS_KEY);
@@ -70,58 +99,68 @@ export default function HomeScreen() {
     }
   }, []);
 
+  // Initialize audio and permissions
   useEffect(() => {
     (async () => {
       if (Platform.OS === 'android') {
-        const res = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        const res = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+        );
         if (res !== PermissionsAndroid.RESULTS.GRANTED) {
           Alert.alert('Permission required', 'Microphone access is needed.');
         }
       }
-      AudioRecord.init({ sampleRate:16000, channels:1, bitsPerSample:16, wavFile:'nativo.wav' });
+      AudioRecord.init({
+        sampleRate:    16000,
+        channels:      1,
+        bitsPerSample: 16,
+        wavFile:       'nativo.wav',
+      });
     })();
     loadSettings();
     return () => clearInterval(timer.current);
   }, [loadSettings]);
 
+  // Reload settings on focus
   useEffect(() => {
     if (isFocused) loadSettings();
   }, [isFocused, loadSettings]);
 
-  if (quotaLoading || !quota) {
-    return <ActivityIndicator style={{ flex:1, justifyContent:'center' }} />;
-  }
-
-  const playSound = async (soundFile) => {
-    const { sound } = await Audio.Sound.createAsync(soundFile, { shouldPlay:true });
-    sound.setOnPlaybackStatusUpdate(status => status.didJustFinish && sound.unloadAsync());
+  // Play a local sound asset
+  const playSound = async soundFile => {
+    const { sound } = await Audio.Sound.createAsync(soundFile, { shouldPlay: true });
+    sound.setOnPlaybackStatusUpdate(status =>
+      status.didJustFinish && sound.unloadAsync()
+    );
   };
-  const startRecording = async (side) => {
-    if (inFlight) return;
-    const currentCount = side==='left'?count1:count2;
-    if (currentCount != null) return;
 
-    if (quota.remainingSeconds < settings.recordDuration) {
-      return Alert.alert('Out of voice time','Tap "Buy More" to add minutes.');
-    }
+  // Start voice recording
+  const startRecording = async side => {
+    const now = Date.now();
+    if (now - lastAction.current < 500) return;
+    lastAction.current = now;
+    if (recordLock.current[side] || inFlight) return;
+    recordLock.current[side] = true;
+
+    const current = side === 'left' ? count1 : count2;
+    if (current != null) return;
+
     if (!locked) {
       Haptics.selectionAsync();
+      recordLock.current[side] = false;
       return;
     }
 
-    const setC  = side==='left'?setCount1:setCount2;
-    const stop  = side==='left'?stopped1:stopped2;
-    stop.current = false;
-
-    await playSound(require('../../assets/ding.mp3'));
     Haptics.selectionAsync();
+    await playSound(require('../../assets/ding.mp3'));
+
     let secs = settings.recordDuration;
-    setC(secs);
+    side === 'left' ? setCount1(secs) : setCount2(secs);
     AudioRecord.start();
 
     timer.current = setInterval(() => {
       secs -= 1;
-      setC(secs);
+      side === 'left' ? setCount1(secs) : setCount2(secs);
       if (secs <= 0) {
         clearInterval(timer.current);
         stopRecording(side);
@@ -129,13 +168,17 @@ export default function HomeScreen() {
     }, 1000);
   };
 
-  const stopRecording = async (side) => {
+  // Stop recording and upload
+  const stopRecording = async side => {
+    const now = Date.now();
+    if (now - lastAction.current < 500) return;
+    lastAction.current = now;
     if (inFlight) return;
-
-    const setC = side==='left'?setCount1:setCount2;
-    const stop= side==='left'?stopped1:stopped2;
+    const setC = side === 'left' ? setCount1 : setCount2;
+    const stop = side === 'left' ? stopped1 : stopped2;
     if (stop.current) return;
     stop.current = true;
+
     clearInterval(timer.current);
     setC(null);
 
@@ -146,57 +189,63 @@ export default function HomeScreen() {
       if (!rawPath) throw new Error('No audio recorded.');
       await playSound(require('../../assets/stop.mp3'));
 
-      const uri = rawPath.startsWith('file://')?rawPath:`file://${rawPath}`;
-      const src = side==='left'?lang1.code:lang2.code;
-      const tgt = side==='left'?lang2.code:lang1.code;
+      const uri = rawPath.startsWith('file://') ? rawPath : `file://${rawPath}`;
+      const src = side === 'left' ? lang1.code : lang2.code;
+      const tgt = side === 'left' ? lang2.code : lang1.code;
 
       const result = await uploadAudio({
         uri,
-        speakerGender: side==='left'?settings.speaker1Gender:settings.speaker2Gender,
-        listenerGender:side==='left'?settings.speaker2Gender:settings.speaker1Gender,
-        formality:     settings.formality,
-        sourceLanguage:src,
-        targetLanguage:tgt,
+        speakerGender:  side === 'left' ? settings.speaker1Gender : settings.speaker2Gender,
+        listenerGender: side === 'left' ? settings.speaker2Gender : settings.speaker1Gender,
+        formality:      settings.formality,
+        sourceLanguage: src,
+        targetLanguage: tgt,
       });
-      if (!result.success) throw new Error(result.error||'Upload failed');
+      if (!result.success) throw new Error(result.error || 'Upload failed');
       setTranslation(result);
 
+      // Auto-play TTS
       if (result.ttsAudioUrl && settings.autoplay) {
         const { sound } = await Audio.Sound.createAsync(
           { uri: result.ttsAudioUrl },
-          { shouldPlay:true }
+          { shouldPlay: true }
         );
-        sound.setOnPlaybackStatusUpdate(s => s.didJustFinish && sound.unloadAsync());
+        sound.setOnPlaybackStatusUpdate(s =>
+          s.didJustFinish && sound.unloadAsync()
+        );
       }
 
-      refreshQuota();
-      // ── Save voice history ───────────────────────────────────────
+      await refreshQuota();
+      // Save history
       try {
         const entry = {
           original:   result.original,
           translated: result.translated,
           timestamp:  Date.now(),
-          from:       side==='left'?lang1.label:lang2.label,
-          to:         side==='left'?lang2.label:lang1.label,
+          from:       side === 'left' ? lang1.label : lang2.label,
+          to:         side === 'left' ? lang2.label : lang1.label,
           type:       'voice',
         };
         const raw = await AsyncStorage.getItem(HISTORY_KEY);
-        const arr = raw?JSON.parse(raw):[];
+        const arr = raw ? JSON.parse(raw) : [];
         arr.unshift(entry);
-        await AsyncStorage.setItem(HISTORY_KEY,JSON.stringify(arr));
+        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
       } catch (e) {
         console.warn('Failed to save voice history', e);
       }
-      // ────────────────────────────────────────────────────────────
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {
       setLoading(false);
       setInFlight(false);
+      recordLock.current[side] = false;
+      stop.current = false;
     }
   };
-  const handleChat = async (side) => {
-    const text = side==='left'?leftChatInput:rightChatInput;
+
+  // Handle text‐chat translation
+  const handleChat = async side => {
+    const text = side === 'left' ? leftChatInput : rightChatInput;
     if (!text.trim()) return;
 
     if (!locked) {
@@ -205,7 +254,7 @@ export default function HomeScreen() {
       try {
         await AsyncStorage.setItem(
           LANGPAIR_KEY,
-          JSON.stringify({ source:lang1.code, target:lang2.code })
+          JSON.stringify({ source: lang1.code, target: lang2.code })
         );
       } catch (e) {
         console.warn('Failed to save lang pair', e);
@@ -214,77 +263,82 @@ export default function HomeScreen() {
 
     setLoading(true);
     try {
-      const src = side==='left'?lang1.code:lang2.code;
-      const tgt = side==='left'?lang2.code:lang1.code;
+      const src = side === 'left' ? lang1.code : lang2.code;
+      const tgt = side === 'left' ? lang2.code : lang1.code;
       const result = await uploadText(
-        text, src, tgt,
+        text,
+        src,
+        tgt,
         settings.speaker1Gender,
         settings.speaker2Gender,
         settings.formality
       );
-      if (!result.success) throw new Error(result.error||'Translate-text failed');
+      if (!result.success) throw new Error(result.error || 'Translate-text failed');
       setTranslation(result);
 
       if (result.ttsAudioUrl && settings.autoplay) {
         const { sound } = await Audio.Sound.createAsync(
           { uri: result.ttsAudioUrl },
-          { shouldPlay:true }
+          { shouldPlay: true }
         );
-        sound.setOnPlaybackStatusUpdate(s => s.didJustFinish && sound.unloadAsync());
+        sound.setOnPlaybackStatusUpdate(s =>
+          s.didJustFinish && sound.unloadAsync()
+        );
       }
 
-      refreshQuota();
-      // ── Save text history ───────────────────────────────────────
+      await refreshQuota();
+      // Save chat history
       try {
         const entry = {
           original:   result.original,
           translated: result.translated,
           timestamp:  Date.now(),
-          from:       side==='left'?lang1.label:lang2.label,
-          to:         side==='left'?lang2.label:lang1.label,
+          from:       side === 'left' ? lang1.label : lang2.label,
+          to:         side === 'left' ? lang2.label : lang1.label,
           type:       'text',
         };
         const raw = await AsyncStorage.getItem(HISTORY_KEY);
-        const arr = raw?JSON.parse(raw):[];
+        const arr = raw ? JSON.parse(raw) : [];
         arr.unshift(entry);
-        await AsyncStorage.setItem(HISTORY_KEY,JSON.stringify(arr));
+        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
       } catch (e) {
         console.warn('Failed to save text history', e);
       }
-      // ────────────────────────────────────────────────────────────
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {
       setLoading(false);
-      side==='left'?setLeftChatInput(''):setRightChatInput('');
+      side === 'left' ? setLeftChatInput('') : setRightChatInput('');
     }
   };
 
-  const buyAddOn = async (productId) => {
+  // Stub purchase until IAP
+  const buyAddOn = async productId => {
+    setLoading(true);
     try {
-      const { data } = await API.post('/purchase/addon',{
-        productId, receipt:'MOCK_RECEIPT'
-      });
-      if (!data.success) throw new Error(data.error);
-      refreshQuota();
+      const resp = await uploadText('', productId, '', '', '', '');
+      if (!resp.success) throw new Error(resp.error || 'Purchase failed');
+      await refreshQuota();
       Alert.alert(
         'Purchase successful',
-        `You now have ${Math.floor(data.remainingSeconds/60)} min & ${data.remainingScans} scans.`
+        `You now have ${Math.floor(resp.remainingSeconds / 60)} min & ${resp.remainingScans} scans.`
       );
     } catch (err) {
-      Alert.alert('Purchase failed', err.message||'Try again later.');
+      Alert.alert('Purchase failed', err.message || 'Try again later.');
+    } finally {
+      setLoading(false);
     }
   };
+
+  // --- Render ---
   return (
     <ScreenWrapper>
-      <Header />
-      <Text style={{ margin:16, fontSize:16 }}>
-        🎙️ {quota.interpretationsLeft} interpretations left
+      <Header title="Voice Translate" />
+
+      <Text style={styles.quotaText}>
+        🎙️ {effectiveQuota.interpretationsLeft ?? 0} interpretations left
       </Text>
-      <TouchableOpacity
-        style={styles.buyMoreBtn}
-        onPress={()=>setStoreVisible(true)}
-      >
+      <TouchableOpacity style={styles.buyMoreBtn} onPress={() => setStoreVisible(true)}>
         <Text style={styles.buyMoreText}>Buy More Minutes & Scans</Text>
       </TouchableOpacity>
 
@@ -303,19 +357,20 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.languageRow}>
+        {/* Left */}
         <View>
           <LanguageColumn
             selected={lang1}
             onSelect={setLang1}
-            onStart={()=>startRecording('left')}
-            onStop={()=>stopRecording('left')}
+            onStart={() => startRecording('left')}
+            onStop={() => stopRecording('left')}
             countdown={count1}
             locked={locked}
             excludeCode={lang2.code}
           />
           <TouchableOpacity
             style={styles.textChatButton}
-            onPress={()=>setLeftChatModal(true)}
+            onPress={() => setLeftChatModal(true)}
             disabled={inFlight}
           >
             <Ionicons name="chatbubble-ellipses-outline" size={20} color="#0ea5e9" />
@@ -323,32 +378,47 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Swap/Lock */}
         <TouchableOpacity
           style={styles.swapIcon}
-          disabled={loading||count1!=null||count2!=null}
-          onPress={async()=>{
-            const nl=!locked; setLocked(nl); Haptics.selectionAsync();
-            if(nl){
-              try{await AsyncStorage.setItem(LANGPAIR_KEY,JSON.stringify({source:lang1.code,target:lang2.code}));}catch(e){console.warn('Failed to save lang pair',e);}
+          disabled={loading || count1 != null || count2 != null}
+          onPress={async () => {
+            const nl = !locked;
+            setLocked(nl);
+            Haptics.selectionAsync();
+            if (nl) {
+              try {
+                await AsyncStorage.setItem(
+                  LANGPAIR_KEY,
+                  JSON.stringify({ source: lang1.code, target: lang2.code })
+                );
+              } catch (e) {
+                console.warn('Failed to save lang pair', e);
+              }
             }
           }}
         >
-          <Ionicons name={locked?'lock-closed-outline':'lock-open-outline'} size={32} color="#0ea5e9"/>
+          <Ionicons
+            name={locked ? 'lock-closed-outline' : 'lock-open-outline'}
+            size={32}
+            color="#0ea5e9"
+          />
         </TouchableOpacity>
 
+        {/* Right */}
         <View>
           <LanguageColumn
             selected={lang2}
             onSelect={setLang2}
-            onStart={()=>startRecording('right')}
-            onStop={()=>stopRecording('right')}
+            onStart={() => startRecording('right')}
+            onStop={() => stopRecording('right')}
             countdown={count2}
             locked={locked}
             excludeCode={lang1.code}
           />
           <TouchableOpacity
             style={styles.textChatButton}
-            onPress={()=>setRightChatModal(true)}
+            onPress={() => setRightChatModal(true)}
             disabled={inFlight}
           >
             <Ionicons name="chatbubble-ellipses-outline" size={20} color="#0ea5e9" />
@@ -356,27 +426,30 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      {loading && <ActivityIndicator size="large" color="#0ea5e9" style={{ marginTop:20 }} />}
+
+      {loading && <ActivityIndicator size="large" color="#0ea5e9" style={{ marginTop: 20 }} />}
+
       {translation && (
         <ScrollView style={styles.translationScrollContainer}>
           <View style={styles.translationCard}>
             <Text style={styles.translationLabel}>Original</Text>
             <Text style={styles.translationText}>{translation.original}</Text>
-            <Text style={[styles.translationLabel, { marginTop:12 }]}>Translated</Text>
+            <Text style={[styles.translationLabel, { marginTop: 12 }]}>Translated</Text>
             <Text style={styles.translationText}>{translation.translated}</Text>
           </View>
         </ScrollView>
       )}
 
-      <Modal visible={storeVisible} animationType="slide" onRequestClose={()=>setStoreVisible(false)}>
+      {/* Store Modal */}
+      <Modal visible={storeVisible} animationType="slide" onRequestClose={() => setStoreVisible(false)}>
         <View style={styles.storeModal}>
           <Text style={styles.storeTitle}>Top-Up Bundles</Text>
           <FlatList
             data={products}
-            keyExtractor={item=>item.productId}
-            ItemSeparatorComponent={()=> <View style={styles.separator} />}
-            renderItem={({item})=>(
-              <TouchableOpacity style={styles.storeItem} onPress={()=>buyAddOn(item.productId)}>
+            keyExtractor={i => i.productId}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.storeItem} onPress={() => buyAddOn(item.productId)}>
                 <Text style={styles.storeName}>
                   {item.title} — {item.priceString}
                 </Text>
@@ -384,21 +457,29 @@ export default function HomeScreen() {
               </TouchableOpacity>
             )}
           />
-          <TouchableOpacity onPress={()=>setStoreVisible(false)}>
+          <TouchableOpacity onPress={() => setStoreVisible(false)}>
             <Text style={styles.storeClose}>✕ Close</Text>
           </TouchableOpacity>
         </View>
       </Modal>
 
       {/* Left Chat Modal */}
-      <Modal visible={leftChatModal} transparent animationType="slide" onRequestClose={()=>setLeftChatModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={()=>setLeftChatModal(false)}>
-          <Pressable style={styles.modalContentContainer} onPress={e=>e.stopPropagation()}>
-            <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'} style={styles.modalInner}>
+      <Modal
+        visible={leftChatModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLeftChatModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setLeftChatModal(false)}>
+          <Pressable style={styles.modalContentContainer} onPress={e => e.stopPropagation()}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.modalInner}
+            >
               <Text style={styles.modalTitle}>{lang1.label} → {lang2.label}</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Type your message..."
+                placeholder="Type your message."
                 value={leftChatInput}
                 onChangeText={setLeftChatInput}
                 multiline
@@ -406,10 +487,10 @@ export default function HomeScreen() {
                 autoFocus
               />
               <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.modalCancel} onPress={()=>setLeftChatModal(false)}>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => setLeftChatModal(false)}>
                   <Text>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalSend} onPress={()=>{handleChat('left'); setLeftChatModal(false);}}>
+                <TouchableOpacity style={styles.modalSend} onPress={() => { handleChat('left'); setLeftChatModal(false); }}>
                   <Text style={styles.modalSendText}>Send</Text>
                 </TouchableOpacity>
               </View>
@@ -419,14 +500,22 @@ export default function HomeScreen() {
       </Modal>
 
       {/* Right Chat Modal */}
-      <Modal visible={rightChatModal} transparent animationType="slide" onRequestClose={()=>setRightChatModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={()=>setRightChatModal(false)}>
-          <Pressable style={styles.modalContentContainer} onPress={e=>e.stopPropagation()}>
-            <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'} style={styles.modalInner}>
+      <Modal
+        visible={rightChatModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setRightChatModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setRightChatModal(false)}>
+          <Pressable style={styles.modalContentContainer} onPress={e => e.stopPropagation()}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.modalInner}
+            >
               <Text style={styles.modalTitle}>{lang2.label} → {lang1.label}</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Type your message..."
+                placeholder="Type your message."
                 value={rightChatInput}
                 onChangeText={setRightChatInput}
                 multiline
@@ -434,10 +523,10 @@ export default function HomeScreen() {
                 autoFocus
               />
               <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.modalCancel} onPress={()=>setRightChatModal(false)}>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => setRightChatModal(false)}>
                   <Text>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalSend} onPress={()=>{handleChat('right'); setRightChatModal(false);}}>
+                <TouchableOpacity style={styles.modalSend} onPress={() => { handleChat('right'); setRightChatModal(false); }}>
                   <Text style={styles.modalSendText}>Send</Text>
                 </TouchableOpacity>
               </View>
@@ -448,7 +537,53 @@ export default function HomeScreen() {
     </ScreenWrapper>
   );
 }
+
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  quotaText: {
+    margin: 16,
+    fontSize: 16,
+    width: '90%',
+    textAlign: 'center',
+  },
+  buyMoreBtn: {
+    backgroundColor: '#fde047',
+    padding: 12,
+    borderRadius: 8,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  buyMoreText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  lockHintWrapper: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  lockHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  lockHintText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0ea5e9',
+    textAlign: 'center',
+  },
+  lockHintIcon: {
+    marginHorizontal: 6,
+  },
+  redText: {
+    color: '#dc2626',
+    fontWeight: '700',
+  },
   languageRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -462,7 +597,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
   },
   flagItem: {
     height: ITEM_HEIGHT,
@@ -473,7 +608,6 @@ const styles = StyleSheet.create({
   langLabel: { fontSize: 14, fontWeight: '600', color: '#334155' },
   countdown: { fontSize: 20, fontWeight: '700', color: '#dc2626' },
   recordingActive: { backgroundColor: '#fee2e2', borderRadius: 16 },
-
   swapIcon: {
     marginTop: 40,
     marginHorizontal: 8,
@@ -498,44 +632,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0ea5e9',
   },
-
-  buyMoreBtn: {
-    backgroundColor: '#fde047',
-    padding: 12,
-    borderRadius: 8,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  buyMoreText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-
-  lockHintWrapper: {
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  lockHintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  lockHintText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0ea5e9',
-    textAlign: 'center',
-  },
-  lockHintIcon: {
-    marginHorizontal: 6,
-  },
-  redText: {
-    color: '#dc2626',
-    fontWeight: '700',
-  },
-
   storeModal: {
     flex: 1,
     padding: 16,
@@ -570,7 +666,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 16,
   },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: 'transparent',
@@ -626,14 +721,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
   },
-
   translationScrollContainer: {
+    flex: 1,
     alignSelf: 'center',
     width: '90%',
     marginTop: 20,
   },
   translationCard: {
-    backgroundColor: '#fef9c3',
+    backgroundColor: '#fde047',
     padding: 20,
     borderRadius: 18,
   },

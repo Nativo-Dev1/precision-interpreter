@@ -12,7 +12,7 @@ import {
   ToastAndroid,
   Platform,
 } from 'react-native';
-import Clipboard from '@react-native-clipboard/clipboard';
+import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,7 +32,8 @@ export default function HistoryScreen() {
     setLoading(true);
     try {
       const raw = await AsyncStorage.getItem(HISTORY_KEY);
-      setHistory(raw ? JSON.parse(raw) : []);
+      const parsed = raw ? JSON.parse(raw) : [];
+      setHistory(parsed);
     } catch (err) {
       console.error('❌ Error loading history:', err);
     } finally {
@@ -63,13 +64,18 @@ export default function HistoryScreen() {
   };
 
   // Copies both original and translated text
-  const copyBubble = (orig, trans) => {
+  const copyBubble = async (orig, trans) => {
     const textToCopy = `${orig}\n\n${trans}`;
-    Clipboard.setString(textToCopy);
-    if (Platform.OS === 'android') {
-      ToastAndroid.show('Copied translation!', ToastAndroid.SHORT);
-    } else {
-      Alert.alert('Copied translation!');
+    try {
+      await Clipboard.setStringAsync(textToCopy);
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Copied translation!', ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Copied translation!');
+      }
+    } catch (e) {
+      console.error('❌ Clipboard error:', e);
+      Alert.alert('Error copying to clipboard');
     }
   };
 
@@ -77,44 +83,52 @@ export default function HistoryScreen() {
     <ScreenWrapper>
       <Header title="History" />
 
-      <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContainer}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scrollContainer}
+      >
         <Text style={styles.title}>📜 Translation History</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#0ea5e9" style={styles.loader} />
+          <ActivityIndicator
+            size="large"
+            color="#0ea5e9"
+            style={styles.loader}
+          />
         ) : history.length === 0 ? (
           <Text style={styles.empty}>No saved conversations yet.</Text>
         ) : (
           history.map(item => {
             const time = new Date(item.timestamp).toLocaleString();
             const isPhoto = item.type === 'photo';
-
             return (
-              <View key={item.timestamp} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Ionicons
-                    name={isPhoto ? 'camera-outline' : 'mic-outline'}
-                    size={20}
-                    color="#0ea5e9"
-                  />
-                  <Text style={styles.cardTitle}>
-                    {item.from} → {item.to}
+              <TouchableOpacity
+                key={item.timestamp}
+                activeOpacity={0.8}
+                onLongPress={() =>
+                  copyBubble(item.original, item.translated)
+                }
+              >
+                <View style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <Ionicons
+                      name={isPhoto ? 'camera-outline' : 'mic-outline'}
+                      size={20}
+                      color="#0ea5e9"
+                    />
+                    <Text style={styles.cardTitle}>
+                      {item.from} → {item.to}
+                    </Text>
+                    <Text style={styles.cardTime}>{time}</Text>
+                  </View>
+                  <Text style={styles.label}>Original:</Text>
+                  <Text style={styles.text}>{item.original}</Text>
+                  <Text style={[styles.label, { marginTop: 8 }]}>
+                    Translated:
                   </Text>
-                  <Text style={styles.cardTime}>{time}</Text>
-                  <TouchableOpacity
-                    onPress={() => copyBubble(item.original, item.translated)}
-                    style={styles.copyIcon}
-                  >
-                    <Ionicons name="copy-outline" size={18} color="#6b7280" />
-                  </TouchableOpacity>
+                  <Text style={styles.text}>{item.translated}</Text>
                 </View>
-
-                <Text style={styles.label}>Original:</Text>
-                <Text style={styles.text}>{item.original}</Text>
-
-                <Text style={[styles.label, { marginTop: 8 }]}>Translated:</Text>
-                <Text style={styles.text}>{item.translated}</Text>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
@@ -131,6 +145,7 @@ export default function HistoryScreen() {
     </ScreenWrapper>
   );
 }
+
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -181,10 +196,6 @@ const styles = StyleSheet.create({
   cardTime: {
     fontSize: 12,
     color: '#9ca3af',
-  },
-  copyIcon: {
-    marginLeft: 12,
-    padding: 4,
   },
   label: {
     fontWeight: 'bold',
