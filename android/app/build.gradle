@@ -92,8 +92,8 @@ android {
         applicationId 'com.lornedev.frontend'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 29
-        versionName "1.0.28"
+        versionCode 36
+        versionName "1.0.35"
     }
     signingConfigs {
         debug {

@@ -39,6 +39,7 @@ import { SETTINGS_KEY, LANGPAIR_KEY } from '../constants/storageKeys';
 import { uploadAudio, uploadText } from '../services/api';
 import { QuotaContext } from '../contexts/QuotaContext';
 
+// Shrink the visible flag window to 100×100
 const ITEM_HEIGHT = 100;
 const HISTORY_KEY  = 'nativoHistory';
 
@@ -243,7 +244,7 @@ export default function HomeScreen() {
     }
   };
 
-  // Handle text‐chat translation
+  // Handle text-chat translation
   const handleChat = async side => {
     const text = side === 'left' ? leftChatInput : rightChatInput;
     if (!text.trim()) return;
@@ -345,87 +346,92 @@ export default function HomeScreen() {
       <View style={styles.lockHintWrapper}>
         {locked ? (
           <Text style={styles.lockHintText}>
-            Press flag to <Text style={styles.redText}>rec.</Text>
+            Press a flag to <Text style={styles.redText}>rec.</Text>
           </Text>
         ) : (
           <View style={styles.lockHintRow}>
             <Text style={styles.lockHintText}>Scroll</Text>
-            <Ionicons name="swap-vertical-outline" style={styles.lockHintIcon} size={16} color="#0ea5e9" />
+            <Ionicons name="swap-vertical-outline" style={styles.lockHintIcon} size={16} color="#3b82f6" />
             <Text style={styles.lockHintText}>and lock</Text>
           </View>
         )}
       </View>
 
-      <View style={styles.languageRow}>
-        {/* Left */}
-        <View>
-          <LanguageColumn
-            selected={lang1}
-            onSelect={setLang1}
-            onStart={() => startRecording('left')}
-            onStop={() => stopRecording('left')}
-            countdown={count1}
-            locked={locked}
-            excludeCode={lang2.code}
-          />
-          <TouchableOpacity
-            style={styles.textChatButton}
-            onPress={() => setLeftChatModal(true)}
-            disabled={inFlight}
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#0ea5e9" />
-            <Text style={styles.textChatLabel}>Text</Text>
-          </TouchableOpacity>
-        </View>
+<View style={styles.languageRow}>
+  {/* Left picker + button in a column */}
+  <View style={styles.pickerContainer}>
+    <View style={styles.languageWrapper}>
+      <LanguageColumn
+        selected={lang1}
+        onSelect={setLang1}
+        onStart={() => startRecording('left')}
+        onStop={() => stopRecording('left')}
+        countdown={count1}
+        locked={locked}
+        excludeCode={lang2.code}
+      />
+    </View>
+    <TouchableOpacity
+      style={styles.textChatButton}
+      onPress={() => setLeftChatModal(true)}
+      disabled={inFlight}
+    >
+      <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3b82f6" />
+      <Text style={styles.textChatLabel}>Text</Text>
+    </TouchableOpacity>
+  </View>
 
-        {/* Swap/Lock */}
-        <TouchableOpacity
-          style={styles.swapIcon}
-          disabled={loading || count1 != null || count2 != null}
-          onPress={async () => {
-            const nl = !locked;
-            setLocked(nl);
-            Haptics.selectionAsync();
-            if (nl) {
-              try {
-                await AsyncStorage.setItem(
-                  LANGPAIR_KEY,
-                  JSON.stringify({ source: lang1.code, target: lang2.code })
-                );
-              } catch (e) {
-                console.warn('Failed to save lang pair', e);
-              }
-            }
-          }}
-        >
-          <Ionicons
-            name={locked ? 'lock-closed-outline' : 'lock-open-outline'}
-            size={32}
-            color="#0ea5e9"
-          />
-        </TouchableOpacity>
+  {/* Swap/Lock icon between columns */}
+  <TouchableOpacity
+    style={styles.swapIcon}
+    disabled={loading || count1 != null || count2 != null}
+    onPress={async () => {
+      const nl = !locked;
+      setLocked(nl);
+      Haptics.selectionAsync();
+      if (nl) {
+        try {
+          await AsyncStorage.setItem(
+            LANGPAIR_KEY,
+            JSON.stringify({ source: lang1.code, target: lang2.code })
+          );
+        } catch (e) {
+          console.warn('Failed to save lang pair', e);
+        }
+      }
+    }}
+  >
+    <Ionicons
+      name={locked ? 'lock-closed-outline' : 'lock-open-outline'}
+      size={32}
+      color="#3b82f6"
+    />
+  </TouchableOpacity>
 
-        {/* Right */}
-        <View>
-          <LanguageColumn
-            selected={lang2}
-            onSelect={setLang2}
-            onStart={() => startRecording('right')}
-            onStop={() => stopRecording('right')}
-            countdown={count2}
-            locked={locked}
-            excludeCode={lang1.code}
-          />
-          <TouchableOpacity
-            style={styles.textChatButton}
-            onPress={() => setRightChatModal(true)}
-            disabled={inFlight}
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#0ea5e9" />
-            <Text style={styles.textChatLabel}>Text</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+  {/* Right picker + button in a column */}
+  <View style={styles.pickerContainer}>
+    <View style={styles.languageWrapper}>
+      <LanguageColumn
+        selected={lang2}
+        onSelect={setLang2}
+        onStart={() => startRecording('right')}
+        onStop={() => stopRecording('right')}
+        countdown={count2}
+        locked={locked}
+        excludeCode={lang1.code}
+      />
+    </View>
+    <TouchableOpacity
+      style={styles.textChatButton}
+      onPress={() => setRightChatModal(true)}
+      disabled={inFlight}
+    >
+      <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3b82f6" />
+      <Text style={styles.textChatLabel}>Text</Text>
+    </TouchableOpacity>
+  </View>
+</View>
+
 
       {loading && <ActivityIndicator size="large" color="#0ea5e9" style={{ marginTop: 20 }} />}
 
@@ -483,7 +489,7 @@ export default function HomeScreen() {
                 value={leftChatInput}
                 onChangeText={setLeftChatInput}
                 multiline
-                maxLength={100}
+                maxLength={150}
                 autoFocus
               />
               <View style={styles.modalButtons}>
@@ -519,7 +525,7 @@ export default function HomeScreen() {
                 value={rightChatInput}
                 onChangeText={setRightChatInput}
                 multiline
-                maxLength={100}
+                maxLength={150}
                 autoFocus
               />
               <View style={styles.modalButtons}>
@@ -574,7 +580,7 @@ const styles = StyleSheet.create({
   lockHintText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0ea5e9',
+    color: '#3b82f6',
     textAlign: 'center',
   },
   lockHintIcon: {
@@ -591,9 +597,25 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 16,
   },
+  languageWrapper: {
+    width:  ITEM_HEIGHT,      // 100px wide
+    height: ITEM_HEIGHT,      // 100px tall, no extra
+    backgroundColor: '#ffffff', 
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+    elevation: 2,
+  },
+  pickerContainer: {
+    flexDirection: 'column',
+    alignItems:    'center',
+    width:         ITEM_HEIGHT,   // same as languageWrapper width
+    marginHorizontal: 8,
+  },
   scrollWrapper: {
-    height: ITEM_HEIGHT,
-    width: 140,
+    height: ITEM_HEIGHT,      // 100px
+    width:  ITEM_HEIGHT,      // 100px
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 16,
@@ -620,7 +642,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0f9ff',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
@@ -630,7 +651,7 @@ const styles = StyleSheet.create({
   textChatLabel: {
     marginLeft: 6,
     fontWeight: '600',
-    color: '#0ea5e9',
+    color: '#3b82f6',
   },
   storeModal: {
     flex: 1,
@@ -668,7 +689,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'transparent', 
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -676,12 +697,11 @@ const styles = StyleSheet.create({
   modalContentContainer: {
     width: '90%',
     maxHeight: '80%',
-    backgroundColor: 'transparent',
+    backgroundColor: '#d0ebff',   // pale-blue modal background
     borderRadius: 18,
     overflow: 'hidden',
   },
   modalInner: {
-    backgroundColor: '#d0ebff',
     padding: 16,
   },
   modalTitle: {
@@ -697,7 +717,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 6,
     padding: 8,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',   
     textAlignVertical: 'top',
   },
   modalButtons: {
@@ -728,7 +748,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   translationCard: {
-    backgroundColor: '#fde047',
+    backgroundColor: '#fff9c4',  // pale-yellow card
     padding: 20,
     borderRadius: 18,
   },

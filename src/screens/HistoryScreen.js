@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontWeight: '600',
     fontSize: 16,
-    color: '#0ea5e9',
+    color: '#3b82f6',
     flex: 1,
   },
   cardTime: {

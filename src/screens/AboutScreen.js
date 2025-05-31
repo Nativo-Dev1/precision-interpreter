@@ -9,7 +9,7 @@ const AboutScreen = () => {
       <Header title="About Nativo" />
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Nativo Interpreter</Text>
-        <Text style={styles.version}>Version 1.0.28</Text>
+        <Text style={styles.version}>Version 1.0.35</Text>
         <Text style={styles.text}>
           Nativo is a real-time bilingual voice and visual interpreter designed for clarity, speed, and cross-cultural communication.
         </Text>

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, FlatList, Pressable, Text, StyleSheet } from 'react-native';
 import languages from '../constants/languages';
 
-const ITEM_HEIGHT = 144;
+const ITEM_HEIGHT = 100;
 
 export default function LanguageColumn({
   selected,
@@ -76,11 +76,11 @@ export default function LanguageColumn({
 const styles = StyleSheet.create({
   scrollWrapper: {
     height: ITEM_HEIGHT,
-    width: 140,
+    width: ITEM_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
   },
   flagItem: {
     height: ITEM_HEIGHT,

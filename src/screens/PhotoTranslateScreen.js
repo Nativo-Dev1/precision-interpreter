@@ -27,13 +27,14 @@ const LANGPAIR_KEY = 'nativoLangPair';
 const HISTORY_KEY  = 'nativoHistory';
 
 export default function PhotoTranslateScreen() {
-  const [imageUri, setImageUri]     = useState(null);
-  const [original, setOriginal]     = useState('');
-  const [translated, setTranslated] = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [sourceLang, setSourceLang] = useState(null);
-  const [targetLang, setTargetLang] = useState(null);
-  const [error, setError]           = useState(null);
+  const [imageUri, setImageUri]       = useState(null);
+  const [showImage, setShowImage]     = useState(true);
+  const [original, setOriginal]       = useState('');
+  const [translated, setTranslated]   = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [sourceLang, setSourceLang]   = useState(null);
+  const [targetLang, setTargetLang]   = useState(null);
+  const [error, setError]             = useState(null);
 
   const isFocused = useIsFocused();
   const { quota: rawQuota, loading: quotaLoading, refreshQuota } = useContext(QuotaContext);
@@ -57,8 +58,13 @@ export default function PhotoTranslateScreen() {
   }, []);
 
   // Initial and on-focus load of lang pair
-  useEffect(() => { loadLangPair(); }, [loadLangPair]);
-  useEffect(() => { if (isFocused) loadLangPair(); }, [isFocused, loadLangPair]);
+  useEffect(() => {
+    loadLangPair();
+  }, [loadLangPair]);
+
+  useEffect(() => {
+    if (isFocused) loadLangPair();
+  }, [isFocused, loadLangPair]);
 
   // Fetch quota on mount, handle error
   useEffect(() => {
@@ -74,7 +80,7 @@ export default function PhotoTranslateScreen() {
 
   // Show spinner while the initial quota is loading
   if (quotaLoading && !rawQuota) {
-    return <ActivityIndicator style={{ flex:1 }} size="large" />;
+    return <ActivityIndicator style={{ flex: 1 }} size="large" />;
   }
 
   // Error retry UI
@@ -98,12 +104,12 @@ export default function PhotoTranslateScreen() {
   // Handler to launch camera
   const pickImage = async () => {
     // Quota check, skipped in dev
-    //if (!__DEV__ && remainingScans < 1) {
-    //return Alert.alert(
-    //'Out of scans',
-    //'You’ve used your camera scans. Tap “Buy more” to add more scans.'
-    //);
-    //}
+    // if (!__DEV__ && remainingScans < 1) {
+    //   return Alert.alert(
+    //     'Out of scans',
+    //     'You’ve used your camera scans. Tap “Buy more” to add more scans.'
+    //   );
+    // }
 
     if (!sourceLang || !targetLang) {
       return Alert.alert(
@@ -124,6 +130,7 @@ export default function PhotoTranslateScreen() {
 
     const uri = result.assets[0].uri;
     setImageUri(uri);
+    setShowImage(true);       // Reset to show image when a new one is picked
     setOriginal('');
     setTranslated('');
     processImage(uri);
@@ -189,11 +196,9 @@ export default function PhotoTranslateScreen() {
       )}
 
       <View style={styles.container}>
+        {/* Camera button */}
         <TouchableOpacity
-          style={[
-            styles.cameraButton,
-            isDisabled && styles.disabledButton
-          ]}
+          style={[styles.cameraButton, isDisabled && styles.disabledButton]}
           onPress={pickImage}
           disabled={isDisabled}
         >
@@ -203,26 +208,50 @@ export default function PhotoTranslateScreen() {
 
         {loading && <ActivityIndicator size="large" style={{ marginTop: 20 }} />}
 
-        {imageUri && (
-          <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="contain" />
+        {/* Show/Hide toggle (only when imageUri exists) */}
+        {imageUri ? (
+          <TouchableOpacity
+            style={styles.toggleButton}
+            onPress={() => setShowImage(prev => !prev)}
+          >
+            <Text style={styles.toggleText}>
+              {showImage ? 'Hide Photo' : 'Show Photo'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {/* Image preview (only when showImage is true) */}
+        {imageUri && showImage && (
+          <Image
+            source={{ uri: imageUri }}
+            style={styles.preview}
+            resizeMode="contain"
+          />
         )}
 
+        {/* ---------- Translation Card ---------- */}
         {(original || translated) && (
-          <ScrollView style={styles.textContainer} nestedScrollEnabled>
-            {original && (
-              <>
-                <Text style={styles.label}>Extracted Text</Text>
-                <Text style={styles.text}>{original}</Text>
-              </>
-            )}
-            {translated && (
-              <>
-                <Text style={[styles.label, { marginTop: 16 }]}>Translated Text</Text>
-                <Text style={styles.text}>{translated}</Text>
-              </>
-            )}
+          <ScrollView style={styles.translationScrollContainer} nestedScrollEnabled>
+            <View style={styles.translationCard}>
+              {original ? (
+                <>
+                  <Text style={styles.translationLabel}>Extracted Text</Text>
+                  <Text style={styles.translationText}>{original}</Text>
+                </>
+              ) : null}
+
+              {translated ? (
+                <>
+                  <Text style={[styles.translationLabel, { marginTop: 12 }]}>
+                    Translated Text
+                  </Text>
+                  <Text style={styles.translationText}>{translated}</Text>
+                </>
+              ) : null}
+            </View>
           </ScrollView>
         )}
+        {/* -------- end Translation Card -------- */}
       </View>
     </ScreenWrapper>
   );
@@ -248,45 +277,67 @@ const styles = StyleSheet.create({
     alignItems:     'stretch',
   },
   cameraButton: {
-    flexDirection:    'row',
-    backgroundColor:  '#3b82f6',
-    paddingVertical:  12,
-    paddingHorizontal:20,
-    borderRadius:     8,
-    alignItems:       'center',
-    alignSelf:        'center',
+    flexDirection:     'row',
+    backgroundColor:   '#3b82f6',
+    paddingVertical:   8,
+    paddingHorizontal: 16,
+    borderRadius:      6,
+    alignItems:        'center',
+    alignSelf:         'center',
   },
   disabledButton: {
     opacity: 0.4,
   },
   cameraText: {
     color:      'white',
-    marginLeft: 8,
+    marginLeft: 6,
     fontWeight: '600',
-    fontSize:   16,
+    fontSize:   14,
+  },
+  toggleButton: {
+    marginTop:     8,
+    alignSelf:     'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius:  4,
+  },
+  toggleText: {
+    color:      '#1e293b',
+    fontSize:   12,
+    fontWeight: '600',
   },
   preview: {
+    width:        '100%',
+    height:       '35%',
+    marginTop:    16,
+    borderRadius: 8,
+  },
+
+  // ---------- Translation Card Styles ----------
+  translationScrollContainer: {
+    flex:        1,
     width:       '100%',
-    height:      '35%',
     marginTop:   16,
-    borderRadius:8,
   },
-  textContainer: {
-    flex:       1,
-    width:      '100%',
-    marginTop:  16,
+  translationCard: {
+    backgroundColor: '#fff9c4',  // pale-yellow card
+    padding:         20,
+    borderRadius:    18,
   },
-  label: {
-    fontWeight:  '700',
-    color:       '#334155',
-    marginBottom:4,
-    fontSize:    14,
+  translationLabel: {
+    fontSize:       13,
+    fontWeight:     '700',
+    color:          '#475569',
+    textTransform:  'uppercase',
   },
-  text: {
-    color:      '#1e293b',
-    lineHeight: 22,
+  translationText: {
     fontSize:   16,
+    color:      '#1e293b',
+    marginTop:  4,
+    lineHeight: 22,
   },
+  // ------------------------------------------------
+
   center: {
     flex:           1,
     justifyContent: 'center',
