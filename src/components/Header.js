@@ -20,7 +20,7 @@ export default function Header() {
         ))}
       </Text>
       <Text style={styles.subtitle}>
-        Real-time Interpretation Between Languages
+        Real-time Language interpreter
       </Text>
     </View>
   );
