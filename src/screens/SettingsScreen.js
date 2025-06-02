@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import {
+  SafeAreaView,
+  ScrollView,
   View,
   Text,
   TouchableOpacity,
@@ -12,9 +14,6 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import jwtDecode from 'jwt-decode';
 import { Ionicons } from '@expo/vector-icons';
-
-import Header from '../components/Header';
-import ScreenWrapper from '../components/ScreenWrapper';
 
 export default function SettingsScreen({ navigation }) {
   // 1. Authentication state
@@ -89,10 +88,8 @@ export default function SettingsScreen({ navigation }) {
   };
 
   return (
-    <ScreenWrapper>
-      <Header />
-
-      <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
         {/* 1. Display logged-in email and Logout button */}
         {email ? (
           <View style={styles.authRow}>
@@ -181,15 +178,23 @@ export default function SettingsScreen({ navigation }) {
           <Ionicons name="checkmark-done-outline" size={20} color="white" />
           <Text style={styles.saveButtonText}>Save Settings</Text>
         </TouchableOpacity>
-      </View>
-    </ScreenWrapper>
+
+        {/* Add bottom padding so last elements aren’t too close to screen bottom */}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
+    backgroundColor: '#FFF',
+  },
+  scrollContainer: {
+    flexGrow: 1,
     padding: 20,
+    justifyContent: 'flex-start',
   },
   authRow: {
     flexDirection: 'row',
