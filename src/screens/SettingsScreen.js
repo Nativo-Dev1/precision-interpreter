@@ -9,18 +9,12 @@ import {
   StyleSheet,
   Switch,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import jwtDecode from 'jwt-decode';
-import { Ionicons } from '@expo/vector-icons';
 
 import Header from '../components/Header';
 import ScreenWrapper from '../components/ScreenWrapper';
 
-export default function SettingsScreen({ navigation }) {
-  // 1. Authentication state
-  const [email, setEmail] = useState('');
-
-  // 2. App settings state
+export default function SettingsScreen() {
+  // 1. App settings state
   const [settings, setSettings] = useState({
     speaker1Gender: 'neutral',
     speaker2Gender: 'neutral',
@@ -29,28 +23,16 @@ export default function SettingsScreen({ navigation }) {
     recordDuration: 5,
   });
 
-  // Load JWT-based email and persisted settings
+  // Load persisted settings from AsyncStorage
   useEffect(() => {
     (async () => {
-      // Load token and decode email
-      try {
-        const token = await AsyncStorage.getItem('userToken');
-        if (token) {
-          const { email: userEmail } = jwtDecode(token);
-          setEmail(userEmail);
-        }
-      } catch (err) {
-        console.error('Failed to load user token', err);
-      }
-
-      // Load saved settings from AsyncStorage
       try {
         const saved = await AsyncStorage.getItem('nativoSettings');
         if (saved) {
           setSettings(prev => ({ ...prev, ...JSON.parse(saved) }));
         }
       } catch (err) {
-        console.error('Failed to load settings', err);
+        console.error('Failed to load settings:', err);
       }
     })();
   }, []);
@@ -58,7 +40,6 @@ export default function SettingsScreen({ navigation }) {
   // Helpers to cycle through gender and duration options
   const cycleGender = current =>
     current === 'neutral' ? 'male' : current === 'male' ? 'female' : 'neutral';
-
   const cycleDuration = current => (current === 5 ? 10 : 5);
 
   // Update a single setting in state
@@ -77,17 +58,6 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
-  // Handle user logout
-  const handleLogout = async () => {
-    try {
-      await AsyncStorage.removeItem('userToken');
-      navigation.replace('Login');
-    } catch (err) {
-      console.error('Error during logout:', err);
-      Alert.alert('❌ Logout Failed');
-    }
-  };
-
   return (
     <ScreenWrapper>
       <Header />
@@ -98,7 +68,7 @@ export default function SettingsScreen({ navigation }) {
 
         {/* 2. Speaker 1 Gender */}
         <View style={styles.settingRow}>
-          <Text style={styles.label}>(Left) Speaker gender</Text>
+          <Text style={styles.label}>(Left) Speaker Gender</Text>
           <TouchableOpacity
             style={styles.settingButton}
             onPress={() =>
@@ -111,7 +81,7 @@ export default function SettingsScreen({ navigation }) {
 
         {/* 3. Speaker 2 Gender */}
         <View style={styles.settingRow}>
-          <Text style={styles.label}>(Right) Speaker gender</Text>
+          <Text style={styles.label}>(Right) Speaker Gender</Text>
           <TouchableOpacity
             style={styles.settingButton}
             onPress={() =>
@@ -144,7 +114,7 @@ export default function SettingsScreen({ navigation }) {
           <Switch
             value={settings.autoplay}
             onValueChange={v => updateSetting('autoplay', v)}
-            trackColor={{ false: '#ccc', true: '#3b82f6' }}
+            trackColor={{ false: '#ccc', true: '#3B82F6' }}
             thumbColor="white"
           />
         </View>
@@ -158,9 +128,7 @@ export default function SettingsScreen({ navigation }) {
               updateSetting('recordDuration', cycleDuration(settings.recordDuration))
             }
           >
-            <Text style={styles.buttonText}>
-              {settings.recordDuration}s
-            </Text>
+            <Text style={styles.buttonText}>{settings.recordDuration}s</Text>
           </TouchableOpacity>
         </View>
 
@@ -169,23 +137,6 @@ export default function SettingsScreen({ navigation }) {
           <Ionicons name="checkmark-done-outline" size={20} color="white" />
           <Text style={styles.saveButtonText}>Save Settings</Text>
         </TouchableOpacity>
-
-        {/* 8. Spacer to push auth row to bottom */}
-        <View style={styles.spacer} />
-
-        {/* 9. Display logged-in email and Logout button at bottom */}
-        {email ? (
-          <View style={styles.authRow}>
-            <View>
-              <Text style={styles.authLabel}>Logged in as:</Text>
-              <Text style={styles.authEmail}>{email}</Text>
-            </View>
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={20} color="white" />
-              <Text style={styles.logoutText}>Log Out</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
       </View>
     </ScreenWrapper>
   );
@@ -195,9 +146,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-  },
-  spacer: {
-    flex: 1,
   },
   title: {
     fontSize: 22,
@@ -242,36 +190,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     marginLeft: 8,
-  },
-  authRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 24,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  authLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  authEmail: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    backgroundColor: '#EF4444',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  logoutText: {
-    color: 'white',
-    fontWeight: '600',
-    marginLeft: 6,
   },
 });
