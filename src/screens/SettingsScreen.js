@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Switch,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
 import Header from '../components/Header';
 import ScreenWrapper from '../components/ScreenWrapper';
@@ -38,19 +40,26 @@ export default function SettingsScreen() {
   }, []);
 
   // Helpers to cycle through gender and duration options
-  const cycleGender = current =>
-    current === 'neutral' ? 'male' : current === 'male' ? 'female' : 'neutral';
-  const cycleDuration = current => (current === 5 ? 10 : 5);
+  const cycleGender = (current) =>
+    current === 'neutral'
+      ? 'male'
+      : current === 'male'
+      ? 'female'
+      : 'neutral';
+  const cycleDuration = (current) => (current === 5 ? 10 : 5);
 
   // Update a single setting in state
   const updateSetting = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
   // Save settings back to AsyncStorage
   const saveSettings = async () => {
     try {
-      await AsyncStorage.setItem('nativoSettings', JSON.stringify(settings));
+      await AsyncStorage.setItem(
+        'nativoSettings',
+        JSON.stringify(settings)
+      );
       Alert.alert('✅ Settings Saved');
     } catch (err) {
       console.error('Error saving settings:', err);
@@ -60,7 +69,7 @@ export default function SettingsScreen() {
 
   return (
     <ScreenWrapper>
-      <Header />
+      <Header title="Settings" />
 
       <View style={styles.container}>
         {/* 1. Settings Title */}
@@ -72,10 +81,15 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.settingButton}
             onPress={() =>
-              updateSetting('speaker1Gender', cycleGender(settings.speaker1Gender))
+              updateSetting(
+                'speaker1Gender',
+                cycleGender(settings.speaker1Gender)
+              )
             }
           >
-            <Text style={styles.buttonText}>{settings.speaker1Gender}</Text>
+            <Text style={styles.buttonText}>
+              {settings.speaker1Gender}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -85,10 +99,15 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.settingButton}
             onPress={() =>
-              updateSetting('speaker2Gender', cycleGender(settings.speaker2Gender))
+              updateSetting(
+                'speaker2Gender',
+                cycleGender(settings.speaker2Gender)
+              )
             }
           >
-            <Text style={styles.buttonText}>{settings.speaker2Gender}</Text>
+            <Text style={styles.buttonText}>
+              {settings.speaker2Gender}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -100,11 +119,15 @@ export default function SettingsScreen() {
             onPress={() =>
               updateSetting(
                 'formality',
-                settings.formality === 'formal' ? 'informal' : 'formal'
+                settings.formality === 'formal'
+                  ? 'informal'
+                  : 'formal'
               )
             }
           >
-            <Text style={styles.buttonText}>{settings.formality}</Text>
+            <Text style={styles.buttonText}>
+              {settings.formality}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -113,7 +136,7 @@ export default function SettingsScreen() {
           <Text style={styles.label}>Autoplay Translations</Text>
           <Switch
             value={settings.autoplay}
-            onValueChange={v => updateSetting('autoplay', v)}
+            onValueChange={(v) => updateSetting('autoplay', v)}
             trackColor={{ false: '#ccc', true: '#3B82F6' }}
             thumbColor="white"
           />
@@ -125,16 +148,28 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.settingButton}
             onPress={() =>
-              updateSetting('recordDuration', cycleDuration(settings.recordDuration))
+              updateSetting(
+                'recordDuration',
+                cycleDuration(settings.recordDuration)
+              )
             }
           >
-            <Text style={styles.buttonText}>{settings.recordDuration}s</Text>
+            <Text style={styles.buttonText}>
+              {settings.recordDuration}s
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* 7. Save Settings Button */}
-        <TouchableOpacity style={styles.saveButton} onPress={saveSettings}>
-          <Ionicons name="checkmark-done-outline" size={20} color="white" />
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={saveSettings}
+        >
+          <Ionicons
+            name="checkmark-done-outline"
+            size={20}
+            color="white"
+          />
           <Text style={styles.saveButtonText}>Save Settings</Text>
         </TouchableOpacity>
       </View>
