@@ -112,7 +112,7 @@ export default function SettingsScreen({ navigation }) {
 
         {/* 3. Speaker 1 Gender */}
         <View style={styles.settingRow}>
-          <Text style={styles.label}>Speaker 1 Gender (Left)</Text>
+          <Text style={styles.label}>(Left) Speaker gender</Text>
           <TouchableOpacity
             style={styles.settingButton}
             onPress={() =>
@@ -125,7 +125,7 @@ export default function SettingsScreen({ navigation }) {
 
         {/* 4. Speaker 2 Gender */}
         <View style={styles.settingRow}>
-          <Text style={styles.label}>Speaker 2 Gender (Right)</Text>
+          <Text style={styles.label}>(Right) Speaker gender</Text>
           <TouchableOpacity
             style={styles.settingButton}
             onPress={() =>
