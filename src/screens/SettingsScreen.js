@@ -2,8 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
   View,
   Text,
   TouchableOpacity,
@@ -14,6 +12,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import jwtDecode from 'jwt-decode';
 import { Ionicons } from '@expo/vector-icons';
+
+import Header from '../components/Header';
+import ScreenWrapper from '../components/ScreenWrapper';
 
 export default function SettingsScreen({ navigation }) {
   // 1. Authentication state
@@ -88,26 +89,14 @@ export default function SettingsScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* 1. Display logged-in email and Logout button */}
-        {email ? (
-          <View style={styles.authRow}>
-            <View>
-              <Text style={styles.authLabel}>Logged in as:</Text>
-              <Text style={styles.authEmail}>{email}</Text>
-            </View>
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={20} color="white" />
-              <Text style={styles.logoutText}>Log Out</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+    <ScreenWrapper>
+      <Header />
 
-        {/* 2. Settings Title */}
+      <View style={styles.container}>
+        {/* 1. Settings Title */}
         <Text style={styles.title}>⚙️ Settings</Text>
 
-        {/* 3. Speaker 1 Gender */}
+        {/* 2. Speaker 1 Gender */}
         <View style={styles.settingRow}>
           <Text style={styles.label}>(Left) Speaker gender</Text>
           <TouchableOpacity
@@ -120,7 +109,7 @@ export default function SettingsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* 4. Speaker 2 Gender */}
+        {/* 3. Speaker 2 Gender */}
         <View style={styles.settingRow}>
           <Text style={styles.label}>(Right) Speaker gender</Text>
           <TouchableOpacity
@@ -133,7 +122,7 @@ export default function SettingsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* 5. Formality */}
+        {/* 4. Formality */}
         <View style={styles.settingRow}>
           <Text style={styles.label}>Formality</Text>
           <TouchableOpacity
@@ -149,7 +138,7 @@ export default function SettingsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* 6. Autoplay Translations */}
+        {/* 5. Autoplay Translations */}
         <View style={styles.settingRow}>
           <Text style={styles.label}>Autoplay Translations</Text>
           <Switch
@@ -160,7 +149,7 @@ export default function SettingsScreen({ navigation }) {
           />
         </View>
 
-        {/* 7. Max Recording Length */}
+        {/* 6. Max Recording Length */}
         <View style={styles.settingRow}>
           <Text style={styles.label}>Max Recording Length</Text>
           <TouchableOpacity
@@ -169,63 +158,46 @@ export default function SettingsScreen({ navigation }) {
               updateSetting('recordDuration', cycleDuration(settings.recordDuration))
             }
           >
-            <Text style={styles.buttonText}>{settings.recordDuration}s</Text>
+            <Text style={styles.buttonText}>
+              {settings.recordDuration}s
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* 8. Save Settings Button */}
+        {/* 7. Save Settings Button */}
         <TouchableOpacity style={styles.saveButton} onPress={saveSettings}>
           <Ionicons name="checkmark-done-outline" size={20} color="white" />
           <Text style={styles.saveButtonText}>Save Settings</Text>
         </TouchableOpacity>
 
-        {/* Add bottom padding so last elements aren’t too close to screen bottom */}
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </SafeAreaView>
+        {/* 8. Spacer to push auth row to bottom */}
+        <View style={styles.spacer} />
+
+        {/* 9. Display logged-in email and Logout button at bottom */}
+        {email ? (
+          <View style={styles.authRow}>
+            <View>
+              <Text style={styles.authLabel}>Logged in as:</Text>
+              <Text style={styles.authEmail}>{email}</Text>
+            </View>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="white" />
+              <Text style={styles.logoutText}>Log Out</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: '#FFF',
-  },
-  scrollContainer: {
-    flexGrow: 1,
     padding: 20,
-    justifyContent: 'flex-start',
   },
-  authRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  authLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  authEmail: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    backgroundColor: '#EF4444',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  logoutText: {
-    color: 'white',
-    fontWeight: '600',
-    marginLeft: 6,
+  spacer: {
+    flex: 1,
   },
   title: {
     fontSize: 22,
@@ -270,5 +242,36 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     marginLeft: 8,
+  },
+  authRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 24,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  authLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  authEmail: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    backgroundColor: '#EF4444',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  logoutText: {
+    color: 'white',
+    fontWeight: '600',
+    marginLeft: 6,
   },
 });
