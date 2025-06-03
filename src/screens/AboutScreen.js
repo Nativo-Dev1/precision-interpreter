@@ -3,15 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Try to import jwt-decode correctly in React Native
-let jwtDecode;
-try {
-  // Some bundlers export it as default
-  jwtDecode = require('jwt-decode').default || require('jwt-decode');
-} catch {
-  jwtDecode = null;
-}
+import jwtDecode from 'jwt-decode'; // <-- ES import
 
 export default function AboutScreen() {
   const [token, setToken] = useState('');
@@ -22,17 +14,18 @@ export default function AboutScreen() {
       try {
         const stored = await AsyncStorage.getItem('userToken');
         setToken(stored || '');
-        if (stored && jwtDecode) {
+        if (stored) {
           let decodedEmail = '';
           try {
-            decodedEmail = jwtDecode(stored).email || '';
-          } catch {
+            const payload = jwtDecode(stored);
+            decodedEmail = payload.email || '';
+          } catch (err) {
             decodedEmail = '<decode failed>';
           }
           setEmail(decodedEmail);
         }
       } catch (err) {
-        console.error('Error reading token:', err);
+        console.error('Error reading token from AsyncStorage:', err);
         setToken('');
         setEmail('');
       }
@@ -41,7 +34,7 @@ export default function AboutScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.label}>🔍 Raw token:</Text>
+      <Text style={styles.label}>🔍 Raw token from AsyncStorage:</Text>
       <Text selectable style={[styles.value, token ? {} : styles.none]}>
         {token || '<none>'}
       </Text>
