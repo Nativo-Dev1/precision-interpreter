@@ -10,33 +10,39 @@ import {
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import jwtDecode from 'jwt-decode';
 import { Ionicons } from '@expo/vector-icons';
 
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
 
+// Use require() so jwtDecode is defined
+const jwtDecode = require('jwt-decode');
+
 export default function AboutScreen({ navigation }) {
+  const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
 
-  // On mount, load the JWT and decode the email
   useEffect(() => {
     (async () => {
       try {
-        const token = await AsyncStorage.getItem('userToken');
-        console.log('📖 [About] Retrieved token:', token);
-        if (token) {
-          const { email: userEmail } = jwtDecode(token);
-          setEmail(userEmail);
-          console.log('📖 [About] Decoded email:', userEmail);
+        const storedToken = await AsyncStorage.getItem('userToken');
+        setToken(storedToken || '');
+        if (storedToken) {
+          // Try/catch in case decode fails
+          let decodedEmail = '';
+          try {
+            decodedEmail = jwtDecode(storedToken).email;
+          } catch (err) {
+            console.warn('⚠️ [About] jwtDecode failed:', err);
+          }
+          setEmail(decodedEmail);
         }
       } catch (err) {
-        console.error('Failed to load or decode token in AboutScreen', err);
+        console.error('Failed to load token in AboutScreen:', err);
       }
     })();
   }, []);
 
-  // Clear token and navigate back to Login
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem('userToken');
@@ -52,7 +58,7 @@ export default function AboutScreen({ navigation }) {
       <Header title="About Nativo" />
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* 1. If logged in, show email + Log Out button */}
+        {/* 1. If we have a decoded email, show it + Log Out */}
         {email ? (
           <View style={styles.authRow}>
             <View>
@@ -66,9 +72,9 @@ export default function AboutScreen({ navigation }) {
           </View>
         ) : null}
 
-        {/* 2. Existing About content (restored from your original) :contentReference[oaicite:0]{index=0} */}
+        {/* 2. About content */}
         <Text style={styles.title}>Nativo Interpreter</Text>
-        <Text style={styles.version}>Version 1.0.45</Text>
+        <Text style={styles.version}>Version 1.0.42</Text>
         <Text style={styles.text}>
           Nativo is a real-time bilingual voice and visual interpreter designed for clarity, speed, and cross-cultural communication.
         </Text>
@@ -83,7 +89,6 @@ export default function AboutScreen({ navigation }) {
         </Text>
         <Text style={styles.textMuted}>© 2025 Nativo Labs. All rights reserved.</Text>
 
-        {/* 3. Extra bottom padding so content isn’t flush at bottom */}
         <View style={{ height: 40 }} />
       </ScrollView>
     </ScreenWrapper>
@@ -93,7 +98,7 @@ export default function AboutScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    paddingBottom: 80, // leave space for any bottom elements
+    paddingBottom: 80,
     backgroundColor: '#fff',
   },
   authRow: {
