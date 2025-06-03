@@ -68,7 +68,7 @@ export default function AboutScreen({ navigation }) {
 
         {/* 2. Existing About content (restored from your original) :contentReference[oaicite:0]{index=0} */}
         <Text style={styles.title}>Nativo Interpreter</Text>
-        <Text style={styles.version}>Version 1.0.42</Text>
+        <Text style={styles.version}>Version 1.0.45</Text>
         <Text style={styles.text}>
           Nativo is a real-time bilingual voice and visual interpreter designed for clarity, speed, and cross-cultural communication.
         </Text>
