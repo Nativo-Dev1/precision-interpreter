@@ -24,9 +24,11 @@ export default function AboutScreen({ navigation }) {
     (async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
+        console.log('📖 [About] Retrieved token:', token);
         if (token) {
           const { email: userEmail } = jwtDecode(token);
           setEmail(userEmail);
+          console.log('📖 [About] Decoded email:', userEmail);
         }
       } catch (err) {
         console.error('Failed to load or decode token in AboutScreen', err);
@@ -64,7 +66,7 @@ export default function AboutScreen({ navigation }) {
           </View>
         ) : null}
 
-        {/* 2. Existing About content */}
+        {/* 2. Existing About content (restored from your original) :contentReference[oaicite:0]{index=0} */}
         <Text style={styles.title}>Nativo Interpreter</Text>
         <Text style={styles.version}>Version 1.0.42</Text>
         <Text style={styles.text}>
@@ -81,7 +83,7 @@ export default function AboutScreen({ navigation }) {
         </Text>
         <Text style={styles.textMuted}>© 2025 Nativo Labs. All rights reserved.</Text>
 
-        {/* 3. Extra bottom padding */}
+        {/* 3. Extra bottom padding so content isn’t flush at bottom */}
         <View style={{ height: 40 }} />
       </ScrollView>
     </ScreenWrapper>
@@ -129,6 +131,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
+    marginTop: 10,
     marginBottom: 4,
     color: '#007AFF',
   },
@@ -141,7 +144,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 14,
     lineHeight: 22,
-    color: '#333',
   },
   textMuted: {
     fontSize: 14,
