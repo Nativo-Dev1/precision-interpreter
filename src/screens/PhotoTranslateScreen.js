@@ -1,4 +1,4 @@
-// src/screens/PhotoTranslateScreen.js
+// frontend/src/screens/PhotoTranslateScreen.js
 
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import {
@@ -25,6 +25,12 @@ import { uploadImageForOcr } from '../services/api';
 
 const LANGPAIR_KEY = 'nativoLangPair';
 const HISTORY_KEY  = 'nativoHistory';
+
+/** Capitalize the first letter of a language string */
+function capitalize(str) {
+  if (typeof str !== 'string' || str.length === 0) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
 export default function PhotoTranslateScreen() {
   const [imageUri, setImageUri]       = useState(null);
@@ -88,29 +94,24 @@ export default function PhotoTranslateScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.error}>{error}</Text>
-        <Button title="Retry" onPress={async () => {
-          setError(null);
-          try {
-            await refreshQuota();
-          } catch (e) {
-            console.warn('Quota retry failed', e);
-            setError('Still unable to load quota.');
-          }
-        }} />
+        <Button
+          title="Retry"
+          onPress={async () => {
+            setError(null);
+            try {
+              await refreshQuota();
+            } catch (e) {
+              console.warn('Quota retry failed', e);
+              setError('Still unable to load quota.');
+            }
+          }}
+        />
       </View>
     );
   }
 
   // Handler to launch camera
   const pickImage = async () => {
-    // Quota check, skipped in dev
-    // if (!__DEV__ && remainingScans < 1) {
-    //   return Alert.alert(
-    //     'Out of scans',
-    //     'You’ve used your camera scans. Tap “Buy more” to add more scans.'
-    //   );
-    // }
-
     if (!sourceLang || !targetLang) {
       return Alert.alert(
         'Select language first',
@@ -179,7 +180,7 @@ export default function PhotoTranslateScreen() {
     }
   };
 
-  // Determine disabled state: loading, no language selected, or no scans left (in prod)
+  // Determine disabled state: loading or no language selected
   const isDisabled = loading || !sourceLang;
 
   return (
@@ -191,7 +192,7 @@ export default function PhotoTranslateScreen() {
 
       {sourceLang && targetLang && (
         <Text style={styles.langFlowLabel}>
-          {targetLang} → {sourceLang}
+          {capitalize(targetLang)} → {capitalize(sourceLang)}
         </Text>
       )}
 
@@ -295,11 +296,11 @@ const styles = StyleSheet.create({
     fontSize:   14,
   },
   toggleButton: {
-    marginTop:     8,
-    alignSelf:     'center',
-    paddingVertical: 4,
+    marginTop:         8,
+    alignSelf:         'center',
+    paddingVertical:   4,
     paddingHorizontal: 8,
-    borderRadius:  4,
+    borderRadius:      4,
   },
   toggleText: {
     color:      '#1e293b',
@@ -315,9 +316,9 @@ const styles = StyleSheet.create({
 
   // ---------- Translation Card Styles ----------
   translationScrollContainer: {
-    flex:        1,
-    width:       '100%',
-    marginTop:   16,
+    flex:       1,
+    width:      '100%',
+    marginTop:  16,
   },
   translationCard: {
     backgroundColor: '#fff9c4',  // pale-yellow card
@@ -325,10 +326,10 @@ const styles = StyleSheet.create({
     borderRadius:    18,
   },
   translationLabel: {
-    fontSize:       13,
-    fontWeight:     '700',
-    color:          '#475569',
-    textTransform:  'uppercase',
+    fontSize:      13,
+    fontWeight:    '700',
+    color:         '#475569',
+    textTransform: 'uppercase',
   },
   translationText: {
     fontSize:   16,

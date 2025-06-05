@@ -1,6 +1,6 @@
-// App.js
+// frontend/App.js
 
-import React, { useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -18,6 +18,8 @@ import AboutScreen from './src/screens/AboutScreen';
 
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+
+export const AuthContext = createContext(null);
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -40,38 +42,41 @@ export default function App() {
   }, []);
 
   if (isLoading) {
-    return null; // or a splash/loading component if you have one
+    return null; // or a Splash component
   }
 
   return (
     <SafeAreaProvider>
       <QuotaProvider>
-        <NavigationContainer>
-          {userToken == null ? (
-            <AuthStack setUserToken={setUserToken} />
-          ) : (
-            <AppTabs />
-          )}
-        </NavigationContainer>
+        {/* Provide userToken & setUserToken to all screens via AuthContext */}
+        <AuthContext.Provider value={{ userToken, setUserToken }}>
+          <NavigationContainer>
+            {userToken == null ? (
+              <AuthStack />
+            ) : (
+              <AppTabs />
+            )}
+          </NavigationContainer>
+        </AuthContext.Provider>
       </QuotaProvider>
     </SafeAreaProvider>
   );
 }
 
-function AuthStack({ setUserToken }) {
+function AuthStack() {
   return (
     <Stack.Navigator initialRouteName="Login">
       <Stack.Screen
         name="Login"
         options={{ headerShown: false }}
       >
-        {(props) => <LoginScreen {...props} setUserToken={setUserToken} />}
+        {(props) => <LoginScreen {...props} />}
       </Stack.Screen>
       <Stack.Screen
         name="Register"
         options={{ headerShown: false }}
       >
-        {(props) => <RegisterScreen {...props} setUserToken={setUserToken} />}
+        {(props) => <RegisterScreen {...props} />}
       </Stack.Screen>
     </Stack.Navigator>
   );

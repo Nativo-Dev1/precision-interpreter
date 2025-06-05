@@ -1,86 +1,115 @@
 // frontend/src/screens/RegisterScreen.js
 
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
-  TextInput,
-  Button,
-  Alert,
-  StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AuthContext } from '../../App'; // Ensure this path matches
+import ScreenWrapper from '../components/ScreenWrapper';
+import Header from '../components/Header';
+import PrimaryButton from '../components/PrimaryButton';
 
-const BACKEND_URL = 'https://nativo-backend.onrender.com'; // replace if different
-
-export default function RegisterScreen({ navigation, setUserToken }) {
+export default function RegisterScreen({ navigation }) {
+  const { setUserToken } = useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleRegister = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password.');
+      return;
+    }
     try {
-      const response = await fetch(`${BACKEND_URL}/register`, {
+      const response = await fetch('https://nativo-backend.onrender.com/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
       const { success, data, error } = await response.json();
-
       if (success) {
-        // 1) Save the JWT in AsyncStorage
         await AsyncStorage.setItem('userToken', data.token);
-        // 2) Update App.js state so it switches to the tab navigator
         setUserToken(data.token);
-        // No navigation.replace needed—App.js will re-render automatically
       } else {
-        Alert.alert('Registration failed', error || 'Unable to create account');
+        Alert.alert('Registration Failed', error || 'Unable to create account');
       }
     } catch (err) {
+      console.error('❌ [Register] Error:', err);
       Alert.alert('Error', 'Unable to connect to server.');
-      console.error(err);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Register</Text>
-      <TextInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
-      <Button title="Sign Up" onPress={handleRegister} />
-      <TouchableOpacity
-        style={styles.linkContainer}
-        onPress={() => navigation.goBack()}
+    <ScreenWrapper>
+      <Header title="Register" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : null}
+        style={styles.container}
       >
-        <Text style={styles.link}>Already have an account? Log in</Text>
-      </TouchableOpacity>
-    </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+
+        <PrimaryButton label="Sign Up" onPress={handleRegister} />
+
+        <TouchableOpacity
+          style={styles.linkContainer}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.linkText}>
+            Already have an account?{' '}
+            <Text style={styles.linkHighlight}>Log in</Text>
+          </Text>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20 },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
   input: {
-    height: 50,
+    height: 48,
+    borderColor: '#D1D5DB',
     borderWidth: 1,
     borderRadius: 8,
     marginBottom: 16,
-    padding: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
   },
-  title: { fontSize: 24, marginBottom: 24, textAlign: 'center' },
-  linkContainer: { marginTop: 16 },
-  link: { color: '#007AFF', textAlign: 'center' },
+  linkContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  linkHighlight: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
 });

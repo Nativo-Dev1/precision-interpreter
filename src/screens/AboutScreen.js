@@ -1,6 +1,6 @@
 // frontend/src/screens/AboutScreen.js
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -15,19 +15,17 @@ import { Ionicons } from '@expo/vector-icons';
 
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
+import { AuthContext } from '../../App'; // Ensure this path matches your App.js
 
-export default function AboutScreen({ navigation }) {
-  const [token, setToken] = useState('');
+export default function AboutScreen() {
+  const { setUserToken } = useContext(AuthContext);
   const [email, setEmail] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem('userToken');
-        setToken(stored || '');
-
         if (stored) {
-          // Manually decode the JWT payload to extract email:
           let decodedEmail = '';
           try {
             const parts = stored.split('.');
@@ -41,9 +39,10 @@ export default function AboutScreen({ navigation }) {
             decodedEmail = '';
           }
           setEmail(decodedEmail);
+        } else {
+          setEmail('');
         }
       } catch {
-        setToken('');
         setEmail('');
       }
     })();
@@ -52,11 +51,12 @@ export default function AboutScreen({ navigation }) {
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem('userToken');
-      navigation.replace('Login');
+      setUserToken(null);
     } catch (err) {
       console.error('Error during logout:', err);
       Alert.alert('❌ Logout Failed');
     }
+    // No navigation.reset() needed—setting userToken to null switches to AuthStack
   };
 
   return (
@@ -64,7 +64,6 @@ export default function AboutScreen({ navigation }) {
       <Header title="About Nativo" />
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* 1. If logged in, show email + Log Out button */}
         {email ? (
           <View style={styles.authRow}>
             <View>
@@ -78,9 +77,8 @@ export default function AboutScreen({ navigation }) {
           </View>
         ) : null}
 
-        {/* 2. About content */}
         <Text style={styles.title}>Nativo Interpreter</Text>
-        <Text style={styles.version}>Version 1.0.42</Text>
+        <Text style={styles.version}>Version 1.0.48</Text>
         <Text style={styles.text}>
           Nativo is a real-time bilingual voice and visual interpreter designed for
           clarity, speed, and cross-cultural communication.

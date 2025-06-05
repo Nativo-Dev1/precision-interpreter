@@ -1,86 +1,121 @@
 // frontend/src/screens/LoginScreen.js
 
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
-  TextInput,
-  Button,
-  Alert,
-  StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { decode as b64decode } from 'base-64';
+import { AuthContext } from '../../App'; // Ensure this path matches
+import ScreenWrapper from '../components/ScreenWrapper';
+import Header from '../components/Header';
+import PrimaryButton from '../components/PrimaryButton';
 
-const BACKEND_URL = 'https://nativo-backend.onrender.com'; // adjust if your backend URL differs
-
-export default function LoginScreen({ navigation, setUserToken }) {
+export default function LoginScreen({ navigation }) {
+  const { setUserToken } = useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password.');
+      return;
+    }
+
     try {
-      const response = await fetch(`${BACKEND_URL}/login`, {
+      const response = await fetch('https://nativo-backend.onrender.com/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const { success, data, error } = await response.json();
-
-      if (success) {
-        // 1) Store the JWT in AsyncStorage
-        await AsyncStorage.setItem('userToken', data.token);
-        // 2) Update App.js state to switch to the tab navigator
-        setUserToken(data.token);
-        // No need to call navigation.replace; App.js will re-render to AppTabs
+      const json = await response.json();
+      if (json.success) {
+        const token = json.data.token;
+        await AsyncStorage.setItem('userToken', token);
+        if (__DEV__) {
+          console.log('🔑 [Login] Stored token:', token);
+        }
+        setUserToken(token);
       } else {
-        Alert.alert('Login failed', error || 'Check your credentials');
+        Alert.alert('Login Failed', json.error || 'Invalid credentials');
       }
     } catch (err) {
-      Alert.alert('Error', 'Unable to connect to server.');
-      console.error(err);
+      console.error('❌ [Login] Error:', err);
+      Alert.alert('Error', 'Unable to login. Please try again.');
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Log In</Text>
-      <TextInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
-      <Button title="Log In" onPress={handleLogin} />
-      <TouchableOpacity
-        style={styles.linkContainer}
-        onPress={() => navigation.navigate('Register')}
+    <ScreenWrapper>
+      <Header title="Login" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : null}
+        style={styles.container}
       >
-        <Text style={styles.link}>Don't have an account? Sign up</Text>
-      </TouchableOpacity>
-    </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+
+        <PrimaryButton label="Login" onPress={handleLogin} />
+
+        <TouchableOpacity
+          style={styles.linkContainer}
+          onPress={() => navigation.navigate('Register')}
+        >
+          <Text style={styles.linkText}>
+            Don't have an account?{' '}
+            <Text style={styles.linkHighlight}>Register</Text>
+          </Text>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20 },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
   input: {
-    height: 50,
+    height: 48,
+    borderColor: '#D1D5DB',
     borderWidth: 1,
     borderRadius: 8,
     marginBottom: 16,
-    padding: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
   },
-  title: { fontSize: 24, marginBottom: 24, textAlign: 'center' },
-  linkContainer: { marginTop: 16 },
-  link: { color: '#007AFF', textAlign: 'center' },
+  linkContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  linkHighlight: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
 });

@@ -1,6 +1,5 @@
 // frontend/src/services/api.js
 
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -27,118 +26,25 @@ function getMimeType(filename) {
 }
 
 /**
- * Create an Axios instance with the backend base URL.
- * Adjust baseURL if your backend domain changes.
+ * Reads JWT from AsyncStorage and includes it in the Authorization header.
+ * Logs the call in development.
  */
-export const API = axios.create({
-  baseURL: 'https://nativo-backend.onrender.com',
-});
-
-/**
- * Request interceptor: automatically attach JWT from AsyncStorage
- * to the `Authorization` header of every outgoing request.
- */
-API.interceptors.request.use(
-  async (config) => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (err) {
-      console.error('[api] Failed to load token from AsyncStorage', err);
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-/**
- * 1️⃣ uploadAudio:
- *   - Records audio locally (wav/mp3/m4a).
- *   - Sends to /upload for STT → Translate → TTS.
- *
- * @param {Object} params 
- *   - uri: string (local file URI)
- *   - speakerGender: 'male' | 'female'
- *   - listenerGender: 'male' | 'female'
- *   - formality: string (e.g., 'formal' | 'casual')
- *   - sourceLanguage: string (e.g., 'english')
- *   - targetLanguage: string (e.g., 'spanish')
- */
-export async function uploadAudio({
-  uri,
-  speakerGender,
-  listenerGender,
-  formality,
-  sourceLanguage,
-  targetLanguage,
-}) {
-  if (!uri || typeof uri !== 'string') {
-    console.error('[uploadAudio] Invalid URI:', uri);
-    throw new Error('uploadAudio called with invalid URI');
+export async function authFetch(url, opts = {}) {
+  const token = await AsyncStorage.getItem('userToken');
+  if (__DEV__) {
+    console.log('🔥 authFetch called for:', url);
   }
-
-  const form = new FormData();
-  const uriParts = uri.split('/');
-  const name = uriParts[uriParts.length - 1];
-
-  form.append('audio', {
-    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-    type: getMimeType(name),
-    name,
-  });
-  form.append('speakerGender', speakerGender);
-  form.append('listenerGender', listenerGender);
-  form.append('formality', formality);
-  form.append('sourceLanguage', sourceLanguage);
-  form.append('targetLanguage', targetLanguage);
-
-  const response = await API.post('/upload', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return response.data;
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: token ? `Bearer ${token}` : '',
+    ...opts.headers,
+  };
+  return fetch(url, { ...opts, headers });
 }
 
 /**
- * 2️⃣ uploadImageForOcr:
- *   - Sends an image to /translate-image for OCR → Translate.
- *
- * @param {string} uri - local image URI
- * @param {string} sourceLanguage 
- * @param {string} targetLanguage 
- */
-export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
-  if (!uri || typeof uri !== 'string') {
-    console.error('[uploadImageForOcr] Invalid URI:', uri);
-    throw new Error('uploadImageForOcr called with invalid URI');
-  }
-
-  const form = new FormData();
-  form.append('image', {
-    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-    name: 'photo.jpg',
-    type: 'image/jpeg',
-  });
-  form.append('sourceLanguage', sourceLanguage);
-  form.append('targetLanguage', targetLanguage);
-
-  const response = await API.post('/translate-image', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return response.data;
-}
-
-/**
- * 3️⃣ uploadText:
- *   - Sends raw text to /translate-text for Translate → TTS.
- *
- * @param {string} text 
- * @param {string} sourceLanguage 
- * @param {string} targetLanguage 
- * @param {string} speakerGender 
- * @param {string} listenerGender 
- * @param {string} formality 
+ * uploadText:
+ *   Sends plain text to /translate-text → backend does Translate → TTS.
  */
 export async function uploadText(
   text,
@@ -157,17 +63,161 @@ export async function uploadText(
     formality,
   };
 
-  const response = await API.post('/translate-text', payload, {
-    headers: { 'Content-Type': 'application/json' },
-  });
-  return response.data;
+  try {
+    if (__DEV__) {
+      console.log(`✍️ [uploadText] Sending text to /translate-text: "${text}"`);
+    }
+    const response = await authFetch(
+      'https://nativo-backend.onrender.com/translate-text',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+    return response.json();
+  } catch (err) {
+    console.error('❌ [uploadText] network or server error:', err);
+    return {
+      success: false,
+      error: 'Network or server error',
+    };
+  }
 }
 
 /**
- * 4️⃣ Optional: Fetch current user quota
- *    (if you implement a GET /me/quota endpoint on your backend)
+ * uploadAudio:
+ *   Sends recorded audio to /upload → backend does STT → Translate → TTS.
+ *   FormData field "file" matches upload.single('file') in server.js.
+ */
+export async function uploadAudio({
+  uri,
+  speakerGender,
+  listenerGender,
+  formality,
+  sourceLanguage,
+  targetLanguage,
+}) {
+  if (!uri || typeof uri !== 'string') {
+    console.error('[uploadAudio] Invalid URI:', uri);
+    throw new Error('uploadAudio called with invalid URI');
+  }
+
+  const form = new FormData();
+  const uriParts = uri.split('/');
+  const name = uriParts[uriParts.length - 1];
+
+  form.append('file', {
+    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+    type: getMimeType(name),
+    name,
+  });
+  form.append('speakerGender', speakerGender);
+  form.append('listenerGender', listenerGender);
+  form.append('formality', formality);
+  form.append('sourceLanguage', sourceLanguage);
+  form.append('targetLanguage', targetLanguage);
+
+  try {
+    if (__DEV__) {
+      console.log(`🔊 [uploadAudio] Sending audio to /upload (file: ${name})`);
+    }
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await fetch(
+      'https://nativo-backend.onrender.com/upload',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+          'Content-Type': 'multipart/form-data',
+        },
+        body: form,
+      }
+    );
+    return response.json();
+  } catch (err) {
+    console.error('❌ [uploadAudio] network or server error:', err);
+    return {
+      success: false,
+      error: 'Network or server error',
+    };
+  }
+}
+
+/**
+ * uploadImageForOcr:
+ *   Sends an image to /translate-image → backend does OCR → Translate.
+ *   FormData field "image" matches upload.single('image') in server.js.
+ */
+export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
+  if (!uri || typeof uri !== 'string') {
+    console.error('[uploadImageForOcr] Invalid URI:', uri);
+    throw new Error('uploadImageForOcr called with invalid URI');
+  }
+
+  const form = new FormData();
+  const uriParts = uri.split('/');
+  const name = uriParts[uriParts.length - 1] || 'photo.jpg';
+
+  form.append('image', {
+    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+    name,
+    type: getMimeType(name),
+  });
+  form.append('sourceLanguage', sourceLanguage);
+  form.append('targetLanguage', targetLanguage);
+
+  try {
+    if (__DEV__) {
+      console.log(`🖼️ [uploadImageForOcr] Sending image to /translate-image (file: ${name})`);
+    }
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await fetch(
+      'https://nativo-backend.onrender.com/translate-image',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+          'Content-Type': 'multipart/form-data',
+        },
+        body: form,
+      }
+    );
+    return response.json();
+  } catch (err) {
+    console.error('❌ [uploadImageForOcr] network or server error:', err);
+    return {
+      success: false,
+      error: 'Network or server error',
+    };
+  }
+}
+
+/**
+ * fetchQuota:
+ *   Calls GET /user/quota via authFetch to retrieve remaining quota.
+ *   Returns exactly what the backend sends:
+ *     { expiresAt, plan, interpretationsLeft, remainingScans, remainingSeconds }
+ *   On network/server failure, returns a default “zero‐quota” object.
  */
 export async function fetchQuota() {
-  const response = await API.get('/me/quota');
-  return response.data;
+  try {
+    if (__DEV__) {
+      console.log(`📊 [fetchQuota] Requesting /user/quota`);
+    }
+    const response = await authFetch(
+      'https://nativo-backend.onrender.com/user/quota',
+      { method: 'GET' }
+    );
+    // response.json() should be { expiresAt, plan, interpretationsLeft, remainingScans, remainingSeconds }
+    return response.json();
+  } catch (err) {
+    console.error('❌ [fetchQuota] network or server error:', err);
+    return {
+      expiresAt: null,
+      plan: null,
+      interpretationsLeft: 0,
+      remainingScans: 0,
+      remainingSeconds: 0,
+    };
+  }
 }

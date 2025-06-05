@@ -1,26 +1,62 @@
 // frontend/src/contexts/QuotaContext.js
+
 import React, { createContext, useState, useEffect } from 'react';
-import { API } from '../services/api';
+import { fetchQuota as fetchQuotaFromService } from '../services/api';
 
 export const QuotaContext = createContext({
-  quota: null,
+  quota: {
+    expiresAt: null,
+    plan: null,
+    interpretationsLeft: 0,
+    remainingScans: 0,
+    remainingSeconds: 0,
+  },
   loading: true,
   refreshQuota: () => {},
 });
 
 export function QuotaProvider({ children }) {
-  const [quota, setQuota]     = useState(null);
+  const [quota, setQuota] = useState({
+    expiresAt: null,
+    plan: null,
+    interpretationsLeft: 0,
+    remainingScans: 0,
+    remainingSeconds: 0,
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchQuota = async () => {
     setLoading(true);
     try {
-      const { data } = await API.get('/user/quota', {
-        headers: { 'x-user-id': '1' }  // TODO: replace '1' with dynamic user ID once you have auth
-      });
-      setQuota(data);
+      // fetchQuotaFromService returns an object like { expiresAt, plan, interpretationsLeft, remainingScans, remainingSeconds }
+      const data = await fetchQuotaFromService();
+      if (data) {
+        setQuota({
+          expiresAt: data.expiresAt,
+          plan: data.plan,
+          interpretationsLeft: data.interpretationsLeft ?? 0,
+          remainingScans: data.remainingScans ?? 0,
+          remainingSeconds: data.remainingSeconds ?? 0,
+        });
+      } else {
+        // If data is null/undefined, default to zeros
+        setQuota({
+          expiresAt: null,
+          plan: null,
+          interpretationsLeft: 0,
+          remainingScans: 0,
+          remainingSeconds: 0,
+        });
+      }
     } catch (e) {
-      console.warn('Failed to fetch quota', e);
+      console.warn('❌ [QuotaContext] Failed to fetch quota', e);
+      setQuota({
+        expiresAt: null,
+        plan: null,
+        interpretationsLeft: 0,
+        remainingScans: 0,
+        remainingSeconds: 0,
+      });
     } finally {
       setLoading(false);
     }
