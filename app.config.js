@@ -1,39 +1,41 @@
 // app.config.js
 
 export default ({ config }) => {
-  const expo = config.expo || {};
-  const android = expo.android || {};
+  const expo    = config.expo  || {};
+  const android= expo.android || {};
 
   return {
     ...config,
     expo: {
       ...expo,
+      name:    "Nativo Interpreter",
+      slug:    "frontend",
+      version: "1.0.49",
 
-      // App identity
-      name: "Nativo Interpreter",
-      slug: "frontend",         // must match your EAS project slug
-      version: "1.0.48",
+      scheme: "nativo",
 
-      // Plugins
       plugins: [
-        "expo-dev-client",
-        // ...add other plugins here if you have them
+        "expo-dev-client"
       ],
 
       android: {
         ...android,
-        package: android.package || "com.lornedev.frontend",
-        versionCode: 49,
-        adaptiveIcon: android.adaptiveIcon || {
+        package:        android.package     || "com.lornedev.frontend",
+        versionCode:    (android.versionCode||48) + 1,
+        edgeToEdgeEnabled: android.edgeToEdgeEnabled ?? true,
+        adaptiveIcon:   android.adaptiveIcon || {
           foregroundImage: "./assets/adaptive-icon.png",
           backgroundColor: "#ffffff"
         },
-        edgeToEdgeEnabled: android.edgeToEdgeEnabled ?? true,
       },
 
-      // Pass extra values into your JS via Constants.manifest
+      ios: {
+        ...expo.ios,
+        bundleIdentifier: expo.ios?.bundleIdentifier || "com.lornedev.nativo",
+      },
+
       extra: {
-        ...(expo.extra || {}),
+        ...(expo.extra||{}),
         BACKEND_URL: process.env.BACKEND_URL,
         eas: {
           projectId: "c67e99b4-c79e-4cbe-9dda-b546aa49538b"
