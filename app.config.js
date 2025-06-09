@@ -3,7 +3,7 @@
 import 'dotenv/config';
 
 export default ({ config }) => {
-  const { expo = {} }   = config;
+  const { expo = {} } = config;
   const { android = {}, ios = {}, web = {}, extra = {} } = expo;
 
   return {
@@ -11,18 +11,17 @@ export default ({ config }) => {
     expo: {
       ...expo,
 
-      // App identity
+      // identity
       name:    "Nativo Interpreter",
-      slug:    "frontend",            // match your existing Expo project
-      version: "1.0.54",              // bump when you publish
+      slug:    "frontend",
       scheme:  "nativo",
+      version: "1.0.54",
 
-      // Plugins
+      // plugins
       plugins: [
         "expo-dev-client"
       ],
 
-      // Android build settings
       android: {
         ...android,
         package:           android.package    || "com.lornedev.nativo",
@@ -34,24 +33,22 @@ export default ({ config }) => {
         },
       },
 
-      // iOS build settings
       ios: {
         ...ios,
         bundleIdentifier: ios.bundleIdentifier || "com.lornedev.nativo",
         buildNumber:     ios.buildNumber     || "1.0.53",
       },
 
-      // Web fallback
       web: {
         ...web,
         favicon: web.favicon || "./assets/favicon.png",
       },
 
-      // Runtime env + EAS linkage
       extra: {
         ...extra,
-        BACKEND_URL: process.env.BACKEND_URL,
-        SENTRY_DSN:  process.env.SENTRY_DSN,
+        // fallback if env isn't injected in Expo Go
+        BACKEND_URL: process.env.BACKEND_URL || "https://nativo-backend.onrender.com",
+        SENTRY_DSN:  process.env.SENTRY_DSN  || "",
         eas: {
           projectId: "c67e99b4-c79e-4cbe-9dda-b546aa49538b"
         }
@@ -59,4 +56,3 @@ export default ({ config }) => {
     }
   };
 };
-
