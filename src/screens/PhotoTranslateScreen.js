@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sentry from '@sentry/react-native';
 
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
@@ -37,7 +38,7 @@ export default function PhotoTranslateScreen() {
   const [showImage, setShowImage]     = useState(true);
   const [original, setOriginal]       = useState('');
   const [translated, setTranslated]   = useState('');
-  const [loading, setLoading]         = useState(false);
+  const [loading, setLoading]         = useState(false);      // ← tracks network calls
   const [sourceLang, setSourceLang]   = useState(null);
   const [targetLang, setTargetLang]   = useState(null);
   const [error, setError]             = useState(null);
@@ -60,6 +61,7 @@ export default function PhotoTranslateScreen() {
       }
     } catch (e) {
       console.warn('Failed to load lang pair', e);
+      Sentry.captureException(e);
     }
   }, []);
 
@@ -79,6 +81,7 @@ export default function PhotoTranslateScreen() {
         await refreshQuota();
       } catch (e) {
         console.warn('Quota fetch failed', e);
+        Sentry.captureException(e);
         setError('Unable to load scan quota. Tap retry.');
       }
     })();
@@ -102,6 +105,7 @@ export default function PhotoTranslateScreen() {
               await refreshQuota();
             } catch (e) {
               console.warn('Quota retry failed', e);
+              Sentry.captureException(e);
               setError('Still unable to load quota.');
             }
           }}
@@ -112,10 +116,19 @@ export default function PhotoTranslateScreen() {
 
   // Handler to launch camera
   const pickImage = async () => {
+    if (loading) return; // Prevent if already processing
+
     if (!sourceLang || !targetLang) {
       return Alert.alert(
         'Select language first',
         'Go back to Home and lock your language pair.'
+      );
+    }
+
+    if (remainingScans <= 0) {
+      return Alert.alert(
+        'Out of scans',
+        'You’ve used all of your free scans. Tap “Buy More” to add more.'
       );
     }
 
@@ -147,7 +160,34 @@ export default function PhotoTranslateScreen() {
     try {
       // Reverse direction: target → source
       const resp = await uploadImageForOcr(fileUri, targetLang, sourceLang);
-      if (!resp.success) throw new Error(resp.error || 'Server error');
+
+      if (!resp.success) {
+        const msg = resp.error || '';
+        if (msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('remaining')) {
+          Alert.alert(
+            'Out of scans',
+            'You have no remaining scans. Tap “Buy More” to top up.'
+          );
+        } else if (msg.toLowerCase().includes('file') || msg.toLowerCase().includes('image')) {
+          Alert.alert(
+            'Invalid image',
+            'Could not process the photo. Please try again with a different image.'
+          );
+        } else {
+          Alert.alert(
+            'OCR error',
+            'Something went wrong while scanning. Check your connection and try again.'
+          );
+        }
+        throw new Error(msg);
+      }
+
+      // If no text extracted
+      if (!resp.original || !resp.original.trim()) {
+        Alert.alert('No text found', 'Try another photo with clearer text.');
+        setLoading(false);
+        return;
+      }
 
       setOriginal(resp.original);
       setTranslated(resp.translated);
@@ -168,13 +208,20 @@ export default function PhotoTranslateScreen() {
         await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
       } catch (e) {
         console.warn('Failed to save photo history', e);
+        Sentry.captureException(e);
       }
 
       // Refresh quota
       await refreshQuota();
     } catch (err) {
-      console.error('[PhotoTranslate ERROR]', err);
-      Alert.alert('Error', err.message);
+      Sentry.captureException(err);
+      if (!err.message.toLowerCase().includes('quota')) {
+        // If quota error already alerted above, skip
+        Alert.alert(
+          'OCR error',
+          err.message || 'Unable to scan. Please try again.'
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -204,9 +251,12 @@ export default function PhotoTranslateScreen() {
           disabled={isDisabled}
         >
           <Ionicons name="camera-outline" size={28} color="white" />
-          <Text style={styles.cameraText}>Take Photo</Text>
+          <Text style={styles.cameraText}>
+            {loading ? 'Scanning…' : 'Take Photo'}
+          </Text>
         </TouchableOpacity>
 
+        {/* Spinner while OCR/translate is in progress */}
         {loading && <ActivityIndicator size="large" style={{ marginTop: 20 }} />}
 
         {/* Show/Hide toggle (only when imageUri exists) */}

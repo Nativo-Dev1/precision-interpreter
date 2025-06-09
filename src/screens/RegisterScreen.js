@@ -1,115 +1,125 @@
-// frontend/src/screens/RegisterScreen.js
 
-import React, { useState, useContext } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+// src/screens/RegisterScreen.js
+
+import React, { useState } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  Alert, 
+  ActivityIndicator, 
+  StyleSheet 
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthContext } from '../../App'; // Ensure this path matches
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
 import PrimaryButton from '../components/PrimaryButton';
+import { register } from '../services/api';
 
 export default function RegisterScreen({ navigation }) {
-  const { setUserToken } = useContext(AuthContext);
-  const [email, setEmail] = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading]   = useState(false);
 
   const handleRegister = async () => {
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       Alert.alert('Error', 'Please enter both email and password.');
       return;
     }
+
+    setLoading(true);
     try {
-      const response = await fetch('https://nativo-backend.onrender.com/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const { success, data, error } = await response.json();
-      if (success) {
-        await AsyncStorage.setItem('userToken', data.token);
-        setUserToken(data.token);
+      const json = await register(email.trim(), password);
+      // Expect { success: true, message: "Registration successful. Please check your email to confirm." }
+      if (json.success) {
+        Alert.alert(
+          'Check Your Email',
+          json.message,
+          [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+        );
       } else {
-        Alert.alert('Registration Failed', error || 'Unable to create account');
+        console.warn('[Register] API returned success:false', json);
+        Alert.alert('Registration Failed', json.error || 'Unknown error');
       }
     } catch (err) {
-      console.error('❌ [Register] Error:', err);
-      Alert.alert('Error', 'Unable to connect to server.');
+      // Log full error for debugging
+      console.error('[Register] Network or server error:', err);
+      // Show the actual message if available
+      const msg = err.message?.replace(/^[^{]*\{/, '{') || err.toString();
+      Alert.alert('Registration Error', msg);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <ScreenWrapper>
       <Header title="Register" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : null}
-        style={styles.container}
-      >
+
+      <View style={styles.form}>
         <TextInput
           style={styles.input}
           placeholder="Email"
-          autoCapitalize="none"
           keyboardType="email-address"
+          autoCapitalize="none"
           value={email}
           onChangeText={setEmail}
+          editable={!loading}
         />
+
         <TextInput
           style={styles.input}
           placeholder="Password"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          editable={!loading}
         />
 
-        <PrimaryButton label="Sign Up" onPress={handleRegister} />
+        {loading ? (
+          <ActivityIndicator style={styles.indicator} />
+        ) : (
+          <PrimaryButton label="Sign Up" onPress={handleRegister} />
+        )}
 
-        <TouchableOpacity
-          style={styles.linkContainer}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.linkText}>
-            Already have an account?{' '}
-            <Text style={styles.linkHighlight}>Log in</Text>
+        <Text style={styles.bottomText}>
+          Already have an account?{' '}
+          <Text 
+            style={styles.link} 
+            onPress={() => navigation.replace('Login')}
+          >
+            Log In
           </Text>
-        </TouchableOpacity>
-      </KeyboardAvoidingView>
+        </Text>
+      </View>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  form: {
     flex: 1,
     paddingHorizontal: 20,
-    justifyContent: 'center',
+    marginTop: 30,
   },
   input: {
     height: 48,
     borderColor: '#D1D5DB',
     borderWidth: 1,
     borderRadius: 8,
-    marginBottom: 16,
     paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+    backgroundColor: '#FFF',
   },
-  linkContainer: {
-    marginTop: 16,
-    alignItems: 'center',
+  indicator: {
+    marginVertical: 20,
   },
-  linkText: {
-    fontSize: 14,
-    color: '#6B7280',
+  bottomText: {
+    marginTop: 24,
+    textAlign: 'center',
+    color: '#4B5563',
   },
-  linkHighlight: {
-    color: '#2563EB',
+  link: {
+    color: '#007AFF',
     fontWeight: '600',
   },
 });

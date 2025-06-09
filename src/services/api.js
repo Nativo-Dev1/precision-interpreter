@@ -1,163 +1,131 @@
-// frontend/src/services/api.js
+// src/services/api.js
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-/**
- * Helper: pick MIME type based on file extension
+/**  
+ * Base URL for all API calls, read from Expo config or fallback  
+ */
+const BACKEND_URL =
+  Constants.expoConfig?.extra?.BACKEND_URL ||
+  'https://nativo-backend.onrender.com';
+
+/**  
+ * Infer MIME type from a file extension  
  */
 function getMimeType(filename) {
   const ext = filename.split('.').pop().toLowerCase();
   switch (ext) {
-    case 'wav':
-      return 'audio/wav';
-    case 'mp3':
-      return 'audio/mpeg';
-    case 'm4a':
-      return 'audio/mp4';
-    case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg';
-    case 'png':
-      return 'image/png';
-    default:
-      return 'application/octet-stream';
+    case 'wav':  return 'audio/wav';
+    case 'mp3':  return 'audio/mpeg';
+    case 'm4a':  return 'audio/mp4';
+    case 'jpg': case 'jpeg': return 'image/jpeg';
+    case 'png':  return 'image/png';
+    default:     return 'application/octet-stream';
   }
 }
 
-/**
- * Reads JWT from AsyncStorage and includes it in the Authorization header.
- * Logs the call in development.
+/**  
+ * Core fetch wrapper: injects Bearer token, logs calls, checks HTTP status,
+ * and returns parsed JSON (or throws on error).  
  */
-export async function authFetch(url, opts = {}) {
+async function authFetch(path, opts = {}) {
+  const url = path.startsWith('http') ? path : `${BACKEND_URL}${path}`;
   const token = await AsyncStorage.getItem('userToken');
-  if (__DEV__) {
-    console.log('🔥 authFetch called for:', url);
-  }
   const headers = {
-    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    // multipart/form-data bodies set their own boundary, so skip JSON header
+    ...(opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     Authorization: token ? `Bearer ${token}` : '',
     ...opts.headers,
   };
-  return fetch(url, { ...opts, headers });
-}
 
-/**
- * uploadText:
- *   Sends plain text to /translate-text → backend does Translate → TTS.
- */
-export async function uploadText(
-  text,
-  sourceLanguage,
-  targetLanguage,
-  speakerGender,
-  listenerGender,
-  formality
-) {
-  const payload = {
-    text,
-    sourceLanguage,
-    targetLanguage,
-    speakerGender,
-    listenerGender,
-    formality,
-  };
+  console.log(`🔥 [api] Request → ${opts.method || 'GET'} ${url}`);
+  const resp = await fetch(url, { ...opts, headers });
+  console.log(`✅ [api] Response ← ${url} [status: ${resp.status}]`);
 
-  try {
-    if (__DEV__) {
-      console.log(`✍️ [uploadText] Sending text to /translate-text: "${text}"`);
-    }
-    const response = await authFetch(
-      'https://nativo-backend.onrender.com/translate-text',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }
-    );
-    return response.json();
-  } catch (err) {
-    console.error('❌ [uploadText] network or server error:', err);
-    return {
-      success: false,
-      error: 'Network or server error',
-    };
+  if (!resp.ok) {
+    const errText = await resp.text();
+    console.error(`❌ [api] Error ← ${url}:`, errText);
+    throw new Error(errText || resp.statusText);
+  }
+
+  const contentType = resp.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return resp.json();
+  } else {
+    return resp.text();
   }
 }
 
-/**
- * uploadAudio:
- *   Sends recorded audio to /upload → backend does STT → Translate → TTS.
- *   FormData field "file" matches upload.single('file') in server.js.
- */
-export async function uploadAudio({
-  uri,
-  speakerGender,
-  listenerGender,
-  formality,
-  sourceLanguage,
-  targetLanguage,
-}) {
-  if (!uri || typeof uri !== 'string') {
-    console.error('[uploadAudio] Invalid URI:', uri);
-    throw new Error('uploadAudio called with invalid URI');
-  }
+/** Auth & user flows **/
 
-  const form = new FormData();
-  const uriParts = uri.split('/');
-  const name = uriParts[uriParts.length - 1];
-
-  form.append('file', {
-    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-    type: getMimeType(name),
-    name,
+export function register(email, password) {
+  return authFetch('/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
   });
+}
+
+export function login(email, password) {
+  return authFetch('/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function confirmEmail(token, email) {
+  const q = `?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+  return authFetch(`/confirm-email${q}`);
+}
+
+export function forgotPassword(email) {
+  return authFetch('/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(email, token, newPassword) {
+  return authFetch('/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, token, newPassword }),
+  });
+}
+
+/** Core translation & OCR **/
+
+export function uploadText(text, sourceLanguage, targetLanguage, speakerGender, listenerGender, formality) {
+  return authFetch('/translate-text', {
+    method: 'POST',
+    body: JSON.stringify({ text, sourceLanguage, targetLanguage, speakerGender, listenerGender, formality }),
+  });
+}
+
+export async function uploadAudio({ uri, sourceLanguage, targetLanguage, speakerGender, listenerGender, formality }) {
+  const name = uri.split('/').pop();
+  const form = new FormData();
+  form.append('audio', {
+    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+    name,
+    type: getMimeType(name),
+  });
+  form.append('sourceLanguage', sourceLanguage);
+  form.append('targetLanguage', targetLanguage);
   form.append('speakerGender', speakerGender);
   form.append('listenerGender', listenerGender);
   form.append('formality', formality);
-  form.append('sourceLanguage', sourceLanguage);
-  form.append('targetLanguage', targetLanguage);
 
-  try {
-    if (__DEV__) {
-      console.log(`🔊 [uploadAudio] Sending audio to /upload (file: ${name})`);
-    }
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await fetch(
-      'https://nativo-backend.onrender.com/upload',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'multipart/form-data',
-        },
-        body: form,
-      }
-    );
-    return response.json();
-  } catch (err) {
-    console.error('❌ [uploadAudio] network or server error:', err);
-    return {
-      success: false,
-      error: 'Network or server error',
-    };
-  }
+  return authFetch('/upload', {
+    method: 'POST',
+    body: form,
+  });
 }
 
-/**
- * uploadImageForOcr:
- *   Sends an image to /translate-image → backend does OCR → Translate.
- *   FormData field "image" matches upload.single('image') in server.js.
- */
 export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
-  if (!uri || typeof uri !== 'string') {
-    console.error('[uploadImageForOcr] Invalid URI:', uri);
-    throw new Error('uploadImageForOcr called with invalid URI');
-  }
-
+  const name = uri.split('/').pop();
   const form = new FormData();
-  const uriParts = uri.split('/');
-  const name = uriParts[uriParts.length - 1] || 'photo.jpg';
-
   form.append('image', {
     uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
     name,
@@ -166,58 +134,25 @@ export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
   form.append('sourceLanguage', sourceLanguage);
   form.append('targetLanguage', targetLanguage);
 
-  try {
-    if (__DEV__) {
-      console.log(`🖼️ [uploadImageForOcr] Sending image to /translate-image (file: ${name})`);
-    }
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await fetch(
-      'https://nativo-backend.onrender.com/translate-image',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'multipart/form-data',
-        },
-        body: form,
-      }
-    );
-    return response.json();
-  } catch (err) {
-    console.error('❌ [uploadImageForOcr] network or server error:', err);
-    return {
-      success: false,
-      error: 'Network or server error',
-    };
-  }
+  return authFetch('/translate-image', {
+    method: 'POST',
+    body: form,
+  });
 }
 
-/**
- * fetchQuota:
- *   Calls GET /user/quota via authFetch to retrieve remaining quota.
- *   Returns exactly what the backend sends:
- *     { expiresAt, plan, interpretationsLeft, remainingScans, remainingSeconds }
- *   On network/server failure, returns a default “zero‐quota” object.
- */
-export async function fetchQuota() {
-  try {
-    if (__DEV__) {
-      console.log(`📊 [fetchQuota] Requesting /user/quota`);
-    }
-    const response = await authFetch(
-      'https://nativo-backend.onrender.com/user/quota',
-      { method: 'GET' }
-    );
-    // response.json() should be { expiresAt, plan, interpretationsLeft, remainingScans, remainingSeconds }
-    return response.json();
-  } catch (err) {
-    console.error('❌ [fetchQuota] network or server error:', err);
-    return {
-      expiresAt: null,
-      plan: null,
-      interpretationsLeft: 0,
-      remainingScans: 0,
-      remainingSeconds: 0,
-    };
-  }
+/** Quota, history & purchases **/
+
+export function fetchQuota() {
+  return authFetch('/user/quota');
+}
+
+export function fetchHistory() {
+  return authFetch('/history');
+}
+
+export function purchaseAddon(productId) {
+  return authFetch('/purchase/addon', {
+    method: 'POST',
+    body: JSON.stringify({ productId }),
+  });
 }

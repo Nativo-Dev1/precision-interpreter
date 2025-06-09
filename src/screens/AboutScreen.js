@@ -1,4 +1,4 @@
-// frontend/src/screens/AboutScreen.js
+// src/screens/AboutScreen.js
 
 import React, { useEffect, useState, useContext } from 'react';
 import {
@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
-import { AuthContext } from '../../App'; // Ensure this path matches your App.js
+import { AuthContext } from '../contexts/AuthContext';
 
 export default function AboutScreen() {
   const { setUserToken } = useContext(AuthContext);
@@ -24,27 +24,18 @@ export default function AboutScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem('userToken');
-        if (stored) {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
           let decodedEmail = '';
           try {
-            const parts = stored.split('.');
-            if (parts.length === 3) {
-              const payloadSeg = parts[1];
-              const decodedString = b64decode(payloadSeg);
-              const payloadObj = JSON.parse(decodedString);
-              decodedEmail = payloadObj.email || '';
-            }
-          } catch {
-            decodedEmail = '';
-          }
+            const [, payloadSeg] = token.split('.');
+            const decodedString  = b64decode(payloadSeg);
+            const payloadObj     = JSON.parse(decodedString);
+            decodedEmail         = payloadObj.email || '';
+          } catch {}
           setEmail(decodedEmail);
-        } else {
-          setEmail('');
         }
-      } catch {
-        setEmail('');
-      }
+      } catch {}
     })();
   }, []);
 
@@ -53,10 +44,9 @@ export default function AboutScreen() {
       await AsyncStorage.removeItem('userToken');
       setUserToken(null);
     } catch (err) {
-      console.error('Error during logout:', err);
-      Alert.alert('❌ Logout Failed');
+      console.error('❌ [Logout] Error:', err);
+      Alert.alert('Logout Failed');
     }
-    // No navigation.reset() needed—setting userToken to null switches to AuthStack
   };
 
   return (
@@ -78,19 +68,15 @@ export default function AboutScreen() {
         ) : null}
 
         <Text style={styles.title}>Nativo Interpreter</Text>
-        <Text style={styles.version}>Version 1.0.48</Text>
+        <Text style={styles.version}>Version 1.0.54</Text>
         <Text style={styles.text}>
-          Nativo is a real-time bilingual voice and visual interpreter designed for
-          clarity, speed, and cross-cultural communication.
+          Nativo is a real-time bilingual voice and visual interpreter designed for clarity, speed, and cross-cultural communication.
         </Text>
         <Text style={styles.text}>
           • 🎤 Translate spoken language live{'\n'}
-          • 📷 Translate text from photos (menus, signs, etc.){'\n'}
-          • 🎧 Hear translated speech aloud in native voice{'\n'}
-          • 📚 Review recent translations in History{'\n'}
-        </Text>
-        <Text style={styles.text}>
-          Built with Expo, React Native, Google Cloud, and OpenAI.
+          • 📷 Translate text from photos{'\n'}
+          • 🎧 Hear translated speech aloud{'\n'}
+          • 📚 Review recent translations
         </Text>
         <Text style={styles.textMuted}>© 2025 Nativo Labs. All rights reserved.</Text>
 
@@ -141,9 +127,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    marginTop: 10,
-    marginBottom: 4,
     color: '#007AFF',
+    marginBottom: 4,
   },
   version: {
     fontSize: 14,
@@ -162,3 +147,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

@@ -1,101 +1,98 @@
 // App.js
 
-import React, { createContext, useState, useEffect } from 'react';
-import { Text, View, ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Linking from 'expo-linking';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  ActivityIndicator,
+  Text,
+  Button,
+  StyleSheet,
+} from 'react-native';
+import Constants from 'expo-constants';
 import * as Sentry from '@sentry/react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+import linking from './src/config/linking';
+import { AuthContext } from './src/contexts/AuthContext';
 import { QuotaProvider } from './src/contexts/QuotaContext';
 
-import HomeScreen from './src/screens/HomeScreen';
+import HomeScreen           from './src/screens/HomeScreen';
 import PhotoTranslateScreen from './src/screens/PhotoTranslateScreen';
-import HistoryScreen from './src/screens/HistoryScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
-import AboutScreen from './src/screens/AboutScreen';
-
-import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
-import ConfirmEmailScreen from './src/screens/ConfirmEmailScreen';
+import HistoryScreen        from './src/screens/HistoryScreen';
+import SettingsScreen       from './src/screens/SettingsScreen';
+import AboutScreen          from './src/screens/AboutScreen';
+import LoginScreen          from './src/screens/LoginScreen';
+import RegisterScreen       from './src/screens/RegisterScreen';
+import ConfirmEmailScreen   from './src/screens/ConfirmEmailScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
-import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
+import ResetPasswordScreen  from './src/screens/ResetPasswordScreen';
 
-Sentry.init({
-  dsn: process.env.SENTRY_DSN || 'https://YOUR_SENTRY_DSN',
-  tracesSampleRate: 0.1,
-});
-
-export const AuthContext = createContext(null);
-
-const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const AuthStack = createStackNavigator();
 const RootStack = createStackNavigator();
+const Tab       = createBottomTabNavigator();
 
 export default function App() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isReady,   setIsReady]   = useState(false);
   const [userToken, setUserToken] = useState(null);
 
   useEffect(() => {
+    const { SENTRY_DSN } = Constants.expoConfig.extra || {};
+    if (SENTRY_DSN) {
+      Sentry.init({
+        dsn: SENTRY_DSN,
+        enableInExpoDevelopment: false,
+        debug: false,
+      });
+      console.log('[Sentry] initialized');
+    } else {
+      console.log('[Sentry] no DSN provided, skipping initialization');
+    }
+
     (async () => {
       try {
+        const AsyncStorage = (await import(
+          '@react-native-async-storage/async-storage'
+        )).default;
         const token = await AsyncStorage.getItem('userToken');
         setUserToken(token);
       } catch (e) {
         Sentry.captureException(e);
-        console.error('Error loading token', e);
+        console.error('[Auth] Error loading token', e);
+      } finally {
+        setIsReady(true);
       }
-      setIsLoading(false);
     })();
   }, []);
 
-  if (isLoading) {
+  if (!isReady) {
     return (
-      <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
+      <View style={styles.center}>
         <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
   }
 
-  const linking = {
-    prefixes: [Linking.createURL('/'), 'nativo://'],
-    config: {
-      screens: {
-        Auth: {
-          screens: {
-            Login:          'login',
-            Register:       'register',
-            ConfirmEmail:   'confirm-email',
-            ForgotPassword: 'forgot-password',
-            ResetPassword:  'reset-password',
-          },
-        },
-        Main: {
-          screens: {
-            Home:     'home',
-            Camera:   'camera',
-            History:  'history',
-            Settings: 'settings',
-            About:    'about',
-          },
-        },
-      },
-    },
-  };
-
   return (
-    <Sentry.ErrorBoundary fallback={<Text>Something went wrong</Text>}>
+    <Sentry.ErrorBoundary
+      fallback={({ error, resetError }) => (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Oops—something went wrong.</Text>
+          <Text style={styles.errorMessage}>{error.message}</Text>
+          <Button title="Try Again" onPress={resetError} />
+        </View>
+      )}
+    >
       <SafeAreaProvider>
         <QuotaProvider>
           <AuthContext.Provider value={{ userToken, setUserToken }}>
             <NavigationContainer linking={linking} fallback={<ActivityIndicator />}>
               <RootStack.Navigator screenOptions={{ headerShown:false }}>
                 {userToken == null ? (
-                  <RootStack.Screen name="Auth"  component={AuthStack}  />
+                  <RootStack.Screen name="Auth" component={AuthFlow} />
                 ) : (
                   <RootStack.Screen name="Main" component={AppTabs} />
                 )}
@@ -108,38 +105,32 @@ export default function App() {
   );
 }
 
-function AuthStack() {
+function AuthFlow() {
   return (
-    <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown:false }}>
-      <Stack.Screen name="Login"          component={LoginScreen} />
-      <Stack.Screen name="Register"       component={RegisterScreen} />
-      <Stack.Screen name="ConfirmEmail"   component={ConfirmEmailScreen} />
-      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-      <Stack.Screen name="ResetPassword"  component={ResetPasswordScreen} />
-    </Stack.Navigator>
+    <AuthStack.Navigator initialRouteName="Login" screenOptions={{ headerShown:false }}>
+      <AuthStack.Screen name="Login"          component={LoginScreen} />
+      <AuthStack.Screen name="Register"       component={RegisterScreen} />
+      <AuthStack.Screen name="ConfirmEmail"   component={ConfirmEmailScreen} />
+      <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <AuthStack.Screen name="ResetPassword"  component={ResetPasswordScreen} />
+    </AuthStack.Navigator>
   );
 }
 
 function AppTabs() {
-  const insets = useSafeAreaInsets();
-
   return (
     <Tab.Navigator
-      screenOptions={({route}) => ({
-        headerShown:       false,
+      screenOptions={({ route }) => ({
+        headerShown: false,
         tabBarActiveTintColor:   '#007AFF',
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: {
           backgroundColor: '#fff',
-          paddingBottom:   insets.bottom + 10,
-          paddingTop:      8,
-          height:          60 + insets.bottom,
-          borderTopWidth:  0,
-          shadowColor:     '#000',
-          shadowOpacity:   0.03,
-          shadowRadius:    4,
-          shadowOffset:    { width:0, height:-1 },
-          elevation:       1,
+          borderTopWidth: 0,
+          elevation: 2,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
         },
         tabBarIcon: ({ color, size }) => {
           const icons = {
@@ -161,3 +152,18 @@ function AppTabs() {
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  center: {
+    flex:1, justifyContent:'center', alignItems:'center'
+  },
+  errorContainer: {
+    flex:1, justifyContent:'center', alignItems:'center', padding:20
+  },
+  errorTitle: {
+    fontSize:18, marginBottom:12
+  },
+  errorMessage: {
+    color:'#666', marginBottom:20, textAlign:'center'
+  }
+});
