@@ -1,46 +1,61 @@
 // app.config.js
 
+import 'dotenv/config';
+
 export default ({ config }) => {
-  const expo    = config.expo  || {};
-  const android= expo.android || {};
+  const { expo = {} } = config;
+  const { android = {}, ios = {}, extra = {} } = expo;
 
   return {
     ...config,
     expo: {
       ...expo,
+
+      // App identity
       name:    "Nativo Interpreter",
-      slug:    "frontend",
-      version: "1.0.49",
+      slug:    "nativo-interpreter",
+      version: "1.0.51",                        // bump this when you publish
+      scheme:  "nativo",
 
-      scheme: "nativo",
-
+      // Plugins
       plugins: [
         "expo-dev-client"
       ],
 
+      // Android-specific
       android: {
         ...android,
-        package:        android.package     || "com.lornedev.frontend",
-        versionCode:    (android.versionCode||48) + 1,
-        edgeToEdgeEnabled: android.edgeToEdgeEnabled ?? true,
-        adaptiveIcon:   android.adaptiveIcon || {
+        package:            android.package    || "com.lornedev.nativo",
+        versionCode:        (android.versionCode || 52) + 1,
+        edgeToEdgeEnabled:  android.edgeToEdgeEnabled ?? true,
+        adaptiveIcon:       android.adaptiveIcon || {
           foregroundImage: "./assets/adaptive-icon.png",
           backgroundColor: "#ffffff"
         },
       },
 
+      // iOS-specific
       ios: {
-        ...expo.ios,
-        bundleIdentifier: expo.ios?.bundleIdentifier || "com.lornedev.nativo",
+        ...ios,
+        bundleIdentifier: ios.bundleIdentifier || "com.lornedev.nativo",
+        buildNumber:      ios.buildNumber     || "1.0.50",
       },
 
-      extra: {
-        ...(expo.extra||{}),
-        BACKEND_URL: process.env.BACKEND_URL,
-        eas: {
-          projectId: "c67e99b4-c79e-4cbe-9dda-b546aa49538b"
-        },
+      // Web fallback (optional)
+      web: {
+        ...expo.web,
+        favicon: expo.web?.favicon || "./assets/favicon.png",
       },
-    },
+
+      // Environment variables accessible at runtime
+      extra: {
+        ...extra,
+        BACKEND_URL: process.env.BACKEND_URL,
+        SENTRY_DSN:  process.env.SENTRY_DSN,
+        eas: {
+          projectId: extra.eas?.projectId || "c67e99b4-c79e-4cbe-9dda-b546aa49538b"
+        }
+      }
+    }
   };
 };
