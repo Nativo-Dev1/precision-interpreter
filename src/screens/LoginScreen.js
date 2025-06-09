@@ -18,54 +18,55 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import Header        from '../components/Header';
 import PrimaryButton from '../components/PrimaryButton';
 
-const { BACKEND_URL } = Constants.expoConfig.extra;
+// Read the backend URL from expo config (with fallback)
+const BACKEND_URL = Constants.expoConfig.extra?.BACKEND_URL
+  || 'https://nativo-backend.onrender.com';
 
 export default function LoginScreen({ navigation }) {
   const { setUserToken } = useContext(AuthContext);
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [loading,  setLoading]  = useState(false);
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
+  const [loading, setLoading]     = useState(false);
 
-  // debug: ensure BACKEND_URL is correct
+  // Debug: confirm the URL at runtime
   useEffect(() => {
     console.log('🔗 BACKEND_URL is:', BACKEND_URL);
   }, []);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Error', 'Please enter both email and password.');
-      return;
+      return Alert.alert('Error', 'Please enter both email and password.');
     }
-
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/login`, {
+      const response = await fetch(`${BACKEND_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       });
+      const json = await response.json();
 
-      const json = await res.json();
-
-      if (!res.ok) {
-        if (res.status === 403 && json.error.toLowerCase().includes('confirm')) {
-          Alert.alert(
+      if (!response.ok) {
+        // Specific handling for unconfirmed email
+        if (
+          response.status === 403 &&
+          json.error?.toLowerCase().includes('confirm')
+        ) {
+          return Alert.alert(
             'Email Not Confirmed',
-            'Please confirm your email first. Check your inbox for the confirmation link.'
+            'Please confirm your email first. Check your inbox for the link.'
           );
-        } else {
-          Alert.alert('Login Failed', json.error || 'Invalid credentials.');
         }
-        return;
+        return Alert.alert('Login Failed', json.error || 'Invalid credentials.');
       }
 
-      // success → store & switch to main app
+      // Success: store token & switch to main app
       await AsyncStorage.setItem('userToken', json.data.token);
       setUserToken(json.data.token);
 
     } catch (err) {
       console.error('❌ [Login] Network or server error:', err);
-      Alert.alert('Network Error', 'Unable to login. Please try again later.');
+      Alert.alert('Network Error', 'Could not reach server; please try again.');
     } finally {
       setLoading(false);
     }
@@ -95,11 +96,7 @@ export default function LoginScreen({ navigation }) {
         />
 
         {loading ? (
-          <ActivityIndicator
-            size="large"
-            color="#007AFF"
-            style={{ marginTop: 20 }}
-          />
+          <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
         ) : (
           <PrimaryButton label="Login" onPress={handleLogin} />
         )}

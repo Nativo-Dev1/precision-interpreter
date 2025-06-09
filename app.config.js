@@ -1,5 +1,4 @@
 // app.config.js
-
 import 'dotenv/config';
 
 export default ({ config }) => {
@@ -10,18 +9,11 @@ export default ({ config }) => {
     ...config,
     expo: {
       ...expo,
-
-      // identity
       name:    "Nativo Interpreter",
       slug:    "frontend",
       scheme:  "nativo",
-      version: "1.0.54",
-
-      // plugins
-      plugins: [
-        "expo-dev-client"
-      ],
-
+      version: "1.0.55",
+      plugins: ["expo-dev-client"],
       android: {
         ...android,
         package:           android.package    || "com.lornedev.nativo",
@@ -32,23 +24,21 @@ export default ({ config }) => {
           backgroundColor: "#ffffff"
         },
       },
-
       ios: {
         ...ios,
         bundleIdentifier: ios.bundleIdentifier || "com.lornedev.nativo",
-        buildNumber:     ios.buildNumber     || "1.0.53",
+        buildNumber:     ios.buildNumber     || "1.0.55",
       },
-
       web: {
         ...web,
         favicon: web.favicon || "./assets/favicon.png",
       },
-
       extra: {
         ...extra,
-        // fallback if env isn't injected in Expo Go
+        // Always use your real backend URL
         BACKEND_URL: process.env.BACKEND_URL || "https://nativo-backend.onrender.com",
-        SENTRY_DSN:  process.env.SENTRY_DSN  || "",
+        // Sentry DSN if you need crash reporting
+        SENTRY_DSN: process.env.SENTRY_DSN || "",
         eas: {
           projectId: "c67e99b4-c79e-4cbe-9dda-b546aa49538b"
         }
