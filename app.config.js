@@ -4,7 +4,7 @@ import 'dotenv/config';
 
 export default ({ config }) => {
   const { expo = {} } = config;
-  const { android = {}, ios = {}, extra = {} } = expo;
+  const { android = {}, ios = {}, web = {}, extra = {} } = expo;
 
   return {
     ...config,
@@ -14,7 +14,7 @@ export default ({ config }) => {
       // App identity
       name:    "Nativo Interpreter",
       slug:    "nativo-interpreter",
-      version: "1.0.51",                        // bump this when you publish
+      version: "1.0.52",       // bump this when you publish
       scheme:  "nativo",
 
       // Plugins
@@ -25,10 +25,10 @@ export default ({ config }) => {
       // Android-specific
       android: {
         ...android,
-        package:            android.package    || "com.lornedev.nativo",
-        versionCode:        (android.versionCode || 52) + 1,
-        edgeToEdgeEnabled:  android.edgeToEdgeEnabled ?? true,
-        adaptiveIcon:       android.adaptiveIcon || {
+        package:           android.package    || "com.lornedev.nativo",
+        versionCode:       (android.versionCode || 52) + 1,
+        edgeToEdgeEnabled: android.edgeToEdgeEnabled ?? true,
+        adaptiveIcon:      android.adaptiveIcon || {
           foregroundImage: "./assets/adaptive-icon.png",
           backgroundColor: "#ffffff"
         },
@@ -38,24 +38,22 @@ export default ({ config }) => {
       ios: {
         ...ios,
         bundleIdentifier: ios.bundleIdentifier || "com.lornedev.nativo",
-        buildNumber:      ios.buildNumber     || "1.0.50",
+        buildNumber:     ios.buildNumber     || "1.0.52",
       },
 
       // Web fallback (optional)
       web: {
-        ...expo.web,
-        favicon: expo.web?.favicon || "./assets/favicon.png",
+        ...web,
+        favicon: web.favicon || "./assets/favicon.png",
       },
 
       // Environment variables accessible at runtime
       extra: {
         ...extra,
         BACKEND_URL: process.env.BACKEND_URL,
-        SENTRY_DSN:  process.env.SENTRY_DSN,
-        eas: {
-          projectId: extra.eas?.projectId || "c67e99b4-c79e-4cbe-9dda-b546aa49538b"
-        }
+        SENTRY_DSN:  process.env.SENTRY_DSN
       }
     }
   };
 };
+
