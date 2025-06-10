@@ -2,13 +2,13 @@
 import React from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, StyleSheet } from 'react-native';
-import { StatusBar } from 'expo-status-bar';   // ← new import
+import { StatusBar } from 'expo-status-bar';
 
 export default function ScreenWrapper({ children }) {
   return (
     <>
-      {/* White background + dark icons */}
-      <StatusBar backgroundColor="#ffffff" style="dark" translucent={false} />
+      {/* Only control the icon style here */}
+      <StatusBar style="dark" />
 
       <LinearGradient
         colors={['#e0f2fe', '#fef9c3', '#ffffff']}

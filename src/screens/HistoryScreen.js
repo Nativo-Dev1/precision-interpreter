@@ -4,8 +4,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
   Alert,
   ActivityIndicator,
   StyleSheet,
@@ -14,16 +14,18 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ← import this
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 
-import Header        from '../components/Header';
 import ScreenWrapper from '../components/ScreenWrapper';
+import Header        from '../components/Header';
 
-const HISTORY_KEY = 'nativoHistory';
+const HISTORY_KEY    = 'nativoHistory';
+const FOOTER_HEIGHT  = 50;  // adjust if you want a taller button row
 
 export default function HistoryScreen() {
+  const insets    = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,8 +35,8 @@ export default function HistoryScreen() {
     try {
       const raw = await AsyncStorage.getItem(HISTORY_KEY);
       setHistory(raw ? JSON.parse(raw) : []);
-    } catch (err) {
-      console.error('❌ Error loading history:', err);
+    } catch (e) {
+      console.error('Error loading history:', e);
     } finally {
       setLoading(false);
     }
@@ -62,17 +64,17 @@ export default function HistoryScreen() {
     );
   };
 
-  const copyBubble = async (orig, trans) => {
-    const textToCopy = `${orig}\n\n${trans}`;
+  const copyToClipboard = async (orig, trans) => {
+    const text = `${orig}\n\n${trans}`;
     try {
-      await Clipboard.setStringAsync(textToCopy);
+      await Clipboard.setStringAsync(text);
       if (Platform.OS === 'android') {
-        ToastAndroid.show('Copied translation!', ToastAndroid.SHORT);
+        ToastAndroid.show('Copied!', ToastAndroid.SHORT);
       } else {
-        Alert.alert('Copied translation!');
+        Alert.alert('Copied to clipboard!');
       }
     } catch (e) {
-      console.error('❌ Clipboard error:', e);
+      console.error('Clipboard error:', e);
       Alert.alert('Error copying to clipboard');
     }
   };
@@ -81,11 +83,12 @@ export default function HistoryScreen() {
     <ScreenWrapper>
       <Header title="History" />
 
-      {/* Content container: header + scroll + footer */}
-      <View style={styles.content}>
+      <View style={styles.container}>
         <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContainer}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: FOOTER_HEIGHT + insets.bottom + 20 },
+          ]}
         >
           <Text style={styles.title}>📜 Translation History</Text>
 
@@ -96,7 +99,7 @@ export default function HistoryScreen() {
               style={styles.loader}
             />
           ) : history.length === 0 ? (
-            <Text style={styles.empty}>No saved conversations yet.</Text>
+            <Text style={styles.empty}>No saved translations yet.</Text>
           ) : (
             history.map(item => {
               const time = new Date(item.timestamp).toLocaleString();
@@ -106,7 +109,7 @@ export default function HistoryScreen() {
                   key={item.timestamp}
                   activeOpacity={0.8}
                   onLongPress={() =>
-                    copyBubble(item.original, item.translated)
+                    copyToClipboard(item.original, item.translated)
                   }
                 >
                   <View style={styles.card}>
@@ -134,36 +137,40 @@ export default function HistoryScreen() {
           )}
         </ScrollView>
 
-        {/* Footer pinned at bottom */}
-        <SafeAreaView edges={['bottom']} style={styles.footerSafe}>
-          <View style={styles.footerRow}>
-            <TouchableOpacity style={styles.clearButton} onPress={clearHistory}>
-              <Ionicons name="trash-outline" size={18} color="white" />
-              <Text style={styles.clearButtonText}>Clear History</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+        {/* Absolute-position footer above nav bar */}
+        <View
+          style={[
+            styles.footer,
+            {
+              bottom: insets.bottom + 10, 
+              height: FOOTER_HEIGHT,
+            },
+          ]}
+        >
+          <TouchableOpacity style={styles.clearButton} onPress={clearHistory}>
+            <Ionicons name="trash-outline" size={18} color="#fff" />
+            <Text style={styles.clearText}>Clear History</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,               // fill below header
+  container: {
+    flex: 1,
+    position: 'relative', // so footer absolute is relative to this
   },
-  scrollView: {
-    flex: 1,               // occupy all space above footer
-  },
-  scrollContainer: {
+  scrollContent: {
     padding: 16,
   },
   title: {
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 16,
-    color: '#1f2937',
     textAlign: 'center',
+    color: '#1f2937',
   },
   loader: {
     marginTop: 40,
@@ -187,11 +194,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   cardTitle: {
-    marginLeft: 8,
-    fontWeight: '600',
-    fontSize: 16,
-    color: '#0ea5e9',
     flex: 1,
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0ea5e9',
   },
   cardTime: {
     fontSize: 12,
@@ -206,25 +213,24 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 4,
   },
-  footerSafe: {
-    backgroundColor: 'transparent',
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: 10,
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   clearButton: {
     flexDirection: 'row',
     backgroundColor: '#ef4444',
-    paddingVertical: 10,
     paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
   },
-  clearButtonText: {
-    color: 'white',
+  clearText: {
+    color: '#fff',
     fontWeight: 'bold',
     marginLeft: 8,
     fontSize: 16,

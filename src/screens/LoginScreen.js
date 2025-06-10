@@ -1,19 +1,16 @@
-// frontend/src/screens/LoginScreen.js
-
 import React, { useState, useContext } from 'react';
 import {
-  View,
-  Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
+  Text,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode as b64decode } from 'base-64';
-import { AuthContext } from '../../App'; // Ensure this path matches
+import { AuthContext } from '../contexts/AuthContext';
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
 import PrimaryButton from '../components/PrimaryButton';
@@ -25,10 +22,8 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password.');
-      return;
+      return Alert.alert('Error', 'Please enter both email and password.');
     }
-
     try {
       const response = await fetch('https://nativo-backend.onrender.com/login', {
         method: 'POST',
@@ -39,9 +34,6 @@ export default function LoginScreen({ navigation }) {
       if (json.success) {
         const token = json.data.token;
         await AsyncStorage.setItem('userToken', token);
-        if (__DEV__) {
-          console.log('🔑 [Login] Stored token:', token);
-        }
         setUserToken(token);
       } else {
         Alert.alert('Login Failed', json.error || 'Invalid credentials');
@@ -56,7 +48,7 @@ export default function LoginScreen({ navigation }) {
     <ScreenWrapper>
       <Header title="Login" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : null}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
         <TextInput
@@ -74,9 +66,7 @@ export default function LoginScreen({ navigation }) {
           value={password}
           onChangeText={setPassword}
         />
-
         <PrimaryButton label="Login" onPress={handleLogin} />
-
         <TouchableOpacity
           style={styles.linkContainer}
           onPress={() => navigation.navigate('Register')}
@@ -95,7 +85,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 20,       // pushes fields down just below the header
   },
   input: {
     height: 48,
@@ -119,3 +110,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

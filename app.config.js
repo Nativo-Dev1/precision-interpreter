@@ -14,7 +14,7 @@ export default ({ config }) => {
       // App identity
       name:    "Nativo Interpreter",
       slug:    "frontend",            // match your existing Expo project
-      version: "1.0.53",              // bump when you publish
+      version: "1.0.54",              // bump when you publish
       scheme:  "nativo",
 
       // Plugins
@@ -26,7 +26,7 @@ export default ({ config }) => {
       android: {
         ...android,
         package:           android.package    || "com.lornedev.nativo",
-        versionCode:       (android.versionCode || 52) + 1,
+        versionCode:       (android.versionCode || 53) + 1,
         edgeToEdgeEnabled: android.edgeToEdgeEnabled ?? true,
         adaptiveIcon:      android.adaptiveIcon || {
           foregroundImage: "./assets/adaptive-icon.png",

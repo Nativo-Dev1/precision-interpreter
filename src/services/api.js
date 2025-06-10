@@ -1,4 +1,4 @@
-// frontend/src/services/api.js
+// src/services/api.js
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
@@ -9,25 +9,18 @@ import { Platform } from 'react-native';
 function getMimeType(filename) {
   const ext = filename.split('.').pop().toLowerCase();
   switch (ext) {
-    case 'wav':
-      return 'audio/wav';
-    case 'mp3':
-      return 'audio/mpeg';
-    case 'm4a':
-      return 'audio/mp4';
+    case 'wav':   return 'audio/wav';
+    case 'mp3':   return 'audio/mpeg';
+    case 'm4a':   return 'audio/mp4';
     case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg';
-    case 'png':
-      return 'image/png';
-    default:
-      return 'application/octet-stream';
+    case 'jpeg':  return 'image/jpeg';
+    case 'png':   return 'image/png';
+    default:      return 'application/octet-stream';
   }
 }
 
 /**
  * Reads JWT from AsyncStorage and includes it in the Authorization header.
- * Logs the call in development.
  */
 export async function authFetch(url, opts = {}) {
   const token = await AsyncStorage.getItem('userToken');
@@ -77,10 +70,7 @@ export async function uploadText(
     return response.json();
   } catch (err) {
     console.error('❌ [uploadText] network or server error:', err);
-    return {
-      success: false,
-      error: 'Network or server error',
-    };
+    return { success: false, error: 'Network or server error' };
   }
 }
 
@@ -103,17 +93,16 @@ export async function uploadAudio({
   }
 
   const form = new FormData();
-  const uriParts = uri.split('/');
-  const name = uriParts[uriParts.length - 1];
+  const name = uri.split('/').pop();
 
   form.append('file', {
     uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
     type: getMimeType(name),
     name,
   });
-  form.append('speakerGender', speakerGender);
+  form.append('speakerGender',  speakerGender);
   form.append('listenerGender', listenerGender);
-  form.append('formality', formality);
+  form.append('formality',      formality);
   form.append('sourceLanguage', sourceLanguage);
   form.append('targetLanguage', targetLanguage);
 
@@ -128,7 +117,7 @@ export async function uploadAudio({
         method: 'POST',
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'multipart/form-data',
+          // NOTE: no Content-Type header so fetch sets the proper multipart boundary
         },
         body: form,
       }
@@ -136,10 +125,7 @@ export async function uploadAudio({
     return response.json();
   } catch (err) {
     console.error('❌ [uploadAudio] network or server error:', err);
-    return {
-      success: false,
-      error: 'Network or server error',
-    };
+    return { success: false, error: 'Network or server error' };
   }
 }
 
@@ -155,8 +141,7 @@ export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
   }
 
   const form = new FormData();
-  const uriParts = uri.split('/');
-  const name = uriParts[uriParts.length - 1] || 'photo.jpg';
+  const name = uri.split('/').pop() || 'photo.jpg';
 
   form.append('image', {
     uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
@@ -177,7 +162,7 @@ export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
         method: 'POST',
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'multipart/form-data',
+          // NOTE: no Content-Type header
         },
         body: form,
       }
@@ -185,19 +170,13 @@ export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
     return response.json();
   } catch (err) {
     console.error('❌ [uploadImageForOcr] network or server error:', err);
-    return {
-      success: false,
-      error: 'Network or server error',
-    };
+    return { success: false, error: 'Network or server error' };
   }
 }
 
 /**
  * fetchQuota:
  *   Calls GET /user/quota via authFetch to retrieve remaining quota.
- *   Returns exactly what the backend sends:
- *     { expiresAt, plan, interpretationsLeft, remainingScans, remainingSeconds }
- *   On network/server failure, returns a default “zero‐quota” object.
  */
 export async function fetchQuota() {
   try {
@@ -208,16 +187,15 @@ export async function fetchQuota() {
       'https://nativo-backend.onrender.com/user/quota',
       { method: 'GET' }
     );
-    // response.json() should be { expiresAt, plan, interpretationsLeft, remainingScans, remainingSeconds }
     return response.json();
   } catch (err) {
     console.error('❌ [fetchQuota] network or server error:', err);
     return {
-      expiresAt: null,
-      plan: null,
+      expiresAt:           null,
+      plan:                null,
       interpretationsLeft: 0,
-      remainingScans: 0,
-      remainingSeconds: 0,
+      remainingScans:      0,
+      remainingSeconds:    0,
     };
   }
 }

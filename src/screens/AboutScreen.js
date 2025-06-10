@@ -1,4 +1,4 @@
-// frontend/src/screens/AboutScreen.js
+// src/screens/AboutScreen.js
 
 import React, { useEffect, useState, useContext } from 'react';
 import {
@@ -11,11 +11,11 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode as b64decode } from 'base-64';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';    // ← named import
 
-import ScreenWrapper from '../components/ScreenWrapper';
-import Header from '../components/Header';
-import { AuthContext } from '../../App'; // Ensure this path matches your App.js
+import ScreenWrapper  from '../components/ScreenWrapper';       // ← fixed path
+import Header         from '../components/Header';              // ← fixed path
+import { AuthContext } from '../contexts/AuthContext';          // ← fixed path
 
 export default function AboutScreen() {
   const { setUserToken } = useContext(AuthContext);
@@ -24,27 +24,18 @@ export default function AboutScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem('userToken');
-        if (stored) {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
           let decodedEmail = '';
           try {
-            const parts = stored.split('.');
-            if (parts.length === 3) {
-              const payloadSeg = parts[1];
-              const decodedString = b64decode(payloadSeg);
-              const payloadObj = JSON.parse(decodedString);
-              decodedEmail = payloadObj.email || '';
-            }
-          } catch {
-            decodedEmail = '';
-          }
+            const [, payloadSeg] = token.split('.');
+            const decodedString  = b64decode(payloadSeg);
+            const payloadObj     = JSON.parse(decodedString);
+            decodedEmail         = payloadObj.email || '';
+          } catch {}
           setEmail(decodedEmail);
-        } else {
-          setEmail('');
         }
-      } catch {
-        setEmail('');
-      }
+      } catch {}
     })();
   }, []);
 
@@ -53,10 +44,9 @@ export default function AboutScreen() {
       await AsyncStorage.removeItem('userToken');
       setUserToken(null);
     } catch (err) {
-      console.error('Error during logout:', err);
-      Alert.alert('❌ Logout Failed');
+      console.error('❌ [Logout] Error:', err);
+      Alert.alert('Logout Failed');
     }
-    // No navigation.reset() needed—setting userToken to null switches to AuthStack
   };
 
   return (
@@ -78,19 +68,15 @@ export default function AboutScreen() {
         ) : null}
 
         <Text style={styles.title}>Nativo Interpreter</Text>
-        <Text style={styles.version}>Version 1.0.48</Text>
+        <Text style={styles.version}>Version 1.0.54</Text>
         <Text style={styles.text}>
-          Nativo is a real-time bilingual voice and visual interpreter designed for
-          clarity, speed, and cross-cultural communication.
+          Nativo is a real-time bilingual voice and visual interpreter designed for clarity, speed, and cross-cultural communication.
         </Text>
         <Text style={styles.text}>
           • 🎤 Translate spoken language live{'\n'}
-          • 📷 Translate text from photos (menus, signs, etc.){'\n'}
-          • 🎧 Hear translated speech aloud in native voice{'\n'}
-          • 📚 Review recent translations in History{'\n'}
-        </Text>
-        <Text style={styles.text}>
-          Built with Expo, React Native, Google Cloud, and OpenAI.
+          • 📷 Translate text from photos{'\n'}
+          • 🎧 Hear translated speech aloud{'\n'}
+          • 📚 Review recent translations
         </Text>
         <Text style={styles.textMuted}>© 2025 Nativo Labs. All rights reserved.</Text>
 
@@ -122,43 +108,38 @@ const styles = StyleSheet.create({
   authEmail: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
-    marginTop: 2,
   },
   logoutButton: {
     flexDirection: 'row',
-    backgroundColor: '#EF4444',
-    paddingVertical: 8,
+    backgroundColor: '#ef4444',
     paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
     alignItems: 'center',
   },
   logoutText: {
-    color: 'white',
-    fontWeight: '600',
+    color: '#fff',
     marginLeft: 6,
+    fontWeight: '600',
   },
   title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginTop: 10,
-    marginBottom: 4,
-    color: '#007AFF',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+    color: '#1e293b',
   },
   version: {
-    fontSize: 14,
-    color: 'gray',
-    marginBottom: 20,
+    marginBottom: 16,
+    color: '#6b7280',
   },
   text: {
     fontSize: 16,
-    marginBottom: 14,
+    color: '#334155',
+    marginBottom: 12,
     lineHeight: 22,
   },
   textMuted: {
     fontSize: 14,
-    color: 'gray',
-    marginTop: 30,
-    textAlign: 'center',
+    color: '#94a3b8',
   },
 });
