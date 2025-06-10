@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 
-import Header from '../components/Header';
+import Header        from '../components/Header';
 import ScreenWrapper from '../components/ScreenWrapper';
 
 const HISTORY_KEY = 'nativoHistory';
@@ -32,8 +32,7 @@ export default function HistoryScreen() {
     setLoading(true);
     try {
       const raw = await AsyncStorage.getItem(HISTORY_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      setHistory(parsed);
+      setHistory(raw ? JSON.parse(raw) : []);
     } catch (err) {
       console.error('❌ Error loading history:', err);
     } finally {
@@ -63,7 +62,6 @@ export default function HistoryScreen() {
     );
   };
 
-  // Copies both original and translated text
   const copyBubble = async (orig, trans) => {
     const textToCopy = `${orig}\n\n${trans}`;
     try {
@@ -83,76 +81,82 @@ export default function HistoryScreen() {
     <ScreenWrapper>
       <Header title="History" />
 
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={styles.scrollContainer}
-      >
-        <Text style={styles.title}>📜 Translation History</Text>
+      {/* Content container: header + scroll + footer */}
+      <View style={styles.content}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContainer}
+        >
+          <Text style={styles.title}>📜 Translation History</Text>
 
-        {loading ? (
-          <ActivityIndicator
-            size="large"
-            color="#0ea5e9"
-            style={styles.loader}
-          />
-        ) : history.length === 0 ? (
-          <Text style={styles.empty}>No saved conversations yet.</Text>
-        ) : (
-          history.map(item => {
-            const time = new Date(item.timestamp).toLocaleString();
-            const isPhoto = item.type === 'photo';
-            return (
-              <TouchableOpacity
-                key={item.timestamp}
-                activeOpacity={0.8}
-                onLongPress={() =>
-                  copyBubble(item.original, item.translated)
-                }
-              >
-                <View style={styles.card}>
-                  <View style={styles.cardHeader}>
-                    <Ionicons
-                      name={isPhoto ? 'camera-outline' : 'mic-outline'}
-                      size={20}
-                      color="#0ea5e9"
-                    />
-                    <Text style={styles.cardTitle}>
-                      {item.from} → {item.to}
+          {loading ? (
+            <ActivityIndicator
+              size="large"
+              color="#0ea5e9"
+              style={styles.loader}
+            />
+          ) : history.length === 0 ? (
+            <Text style={styles.empty}>No saved conversations yet.</Text>
+          ) : (
+            history.map(item => {
+              const time = new Date(item.timestamp).toLocaleString();
+              const isPhoto = item.type === 'photo';
+              return (
+                <TouchableOpacity
+                  key={item.timestamp}
+                  activeOpacity={0.8}
+                  onLongPress={() =>
+                    copyBubble(item.original, item.translated)
+                  }
+                >
+                  <View style={styles.card}>
+                    <View style={styles.cardHeader}>
+                      <Ionicons
+                        name={isPhoto ? 'camera-outline' : 'mic-outline'}
+                        size={20}
+                        color="#0ea5e9"
+                      />
+                      <Text style={styles.cardTitle}>
+                        {item.from} → {item.to}
+                      </Text>
+                      <Text style={styles.cardTime}>{time}</Text>
+                    </View>
+                    <Text style={styles.label}>Original:</Text>
+                    <Text style={styles.text}>{item.original}</Text>
+                    <Text style={[styles.label, { marginTop: 8 }]}>
+                      Translated:
                     </Text>
-                    <Text style={styles.cardTime}>{time}</Text>
+                    <Text style={styles.text}>{item.translated}</Text>
                   </View>
-                  <Text style={styles.label}>Original:</Text>
-                  <Text style={styles.text}>{item.original}</Text>
-                  <Text style={[styles.label, { marginTop: 8 }]}>
-                    Translated:
-                  </Text>
-                  <Text style={styles.text}>{item.translated}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </ScrollView>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
 
-      <SafeAreaView edges={['bottom']} style={{ backgroundColor: 'transparent' }}>
-        <View style={styles.footerRow}>
-          <TouchableOpacity style={styles.clearButton} onPress={clearHistory}>
-            <Ionicons name="trash-outline" size={18} color="white" />
-            <Text style={styles.clearButtonText}>Clear History</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+        {/* Footer pinned at bottom */}
+        <SafeAreaView edges={['bottom']} style={styles.footerSafe}>
+          <View style={styles.footerRow}>
+            <TouchableOpacity style={styles.clearButton} onPress={clearHistory}>
+              <Ionicons name="trash-outline" size={18} color="white" />
+              <Text style={styles.clearButtonText}>Clear History</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
+  content: {
+    flex: 1,               // fill below header
+  },
+  scrollView: {
+    flex: 1,               // occupy all space above footer
   },
   scrollContainer: {
     padding: 16,
-    paddingBottom: 0,
   },
   title: {
     fontSize: 22,
@@ -175,10 +179,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
   cardHeader: {
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontWeight: '600',
     fontSize: 16,
-    color: '#3b82f6',
+    color: '#0ea5e9',
     flex: 1,
   },
   cardTime: {
@@ -206,10 +206,14 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 4,
   },
+  footerSafe: {
+    backgroundColor: 'transparent',
+  },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     paddingVertical: 10,
+    backgroundColor: '#fff',
   },
   clearButton: {
     flexDirection: 'row',
