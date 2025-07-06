@@ -1,5 +1,6 @@
 // app.config.js
 
+// load .env into process.env at config time
 import 'dotenv/config';
 
 export default ({ config }) => {
@@ -13,20 +14,21 @@ export default ({ config }) => {
 
       // App identity
       name:    "Nativo Interpreter",
-      slug:    "frontend",            // match your existing Expo project
-      version: "1.0.54",              // bump when you publish
+      slug:    "frontend",
+      version: "1.0.76",
       scheme:  "nativo",
 
       // Plugins
       plugins: [
-        "expo-dev-client"
+        "expo-dev-client",
+        "expo-in-app-purchases"
       ],
 
       // Android build settings
       android: {
         ...android,
         package:           android.package    || "com.lornedev.nativo",
-        versionCode:       (android.versionCode || 53) + 1,
+        versionCode:       (android.versionCode || 75) + 1,
         edgeToEdgeEnabled: android.edgeToEdgeEnabled ?? true,
         adaptiveIcon:      android.adaptiveIcon || {
           foregroundImage: "./assets/adaptive-icon.png",
@@ -59,4 +61,3 @@ export default ({ config }) => {
     }
   };
 };
-
