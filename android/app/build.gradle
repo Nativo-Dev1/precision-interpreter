@@ -87,13 +87,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.lornedev.frontend'
+    namespace 'com.lornedev.nativo'
     defaultConfig {
-        applicationId 'com.lornedev.frontend'
+        applicationId 'com.lornedev.nativo'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 54
-        versionName "1.0.54"
+        versionCode 76
+        versionName "1.0.76"
     }
     signingConfigs {
         debug {

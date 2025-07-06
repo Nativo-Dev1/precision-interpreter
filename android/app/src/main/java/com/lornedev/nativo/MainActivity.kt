@@ -1,4 +1,4 @@
-package com.lornedev.frontend
+package com.lornedev.nativo
 
 import android.os.Build
 import android.os.Bundle
