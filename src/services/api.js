@@ -134,15 +134,11 @@ export async function uploadAudio({
  *   Sends an image to /translate-image → backend does OCR → Translate.
  *   FormData field "image" matches upload.single('image') in server.js.
  */
-export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
-  if (!uri || typeof uri !== 'string') {
-    console.error('[uploadImageForOcr] Invalid URI:', uri);
-    throw new Error('uploadImageForOcr called with invalid URI');
-  }
+// in src/services/api.js
 
+export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
   const form = new FormData();
   const name = uri.split('/').pop() || 'photo.jpg';
-
   form.append('image', {
     uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
     name,
@@ -152,25 +148,27 @@ export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
   form.append('targetLanguage', targetLanguage);
 
   try {
-    if (__DEV__) {
-      console.log(`🖼️ [uploadImageForOcr] Sending image to /translate-image (file: ${name})`);
-    }
+    if (__DEV__) console.log(`🖼️ [uploadImageForOcr] Sending image: ${name}`);
     const token = await AsyncStorage.getItem('userToken');
     const response = await fetch(
       'https://nativo-backend.onrender.com/translate-image',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          // NOTE: no Content-Type header
-        },
-        body: form,
-      }
+      { method: 'POST', headers: { Authorization: token ? `Bearer ${token}` : '' }, body: form }
     );
-    return response.json();
+
+    const text = await response.text();
+    if (!response.ok) {
+      console.error('[uploadImageForOcr] Server error:', text);
+      throw new Error(text || 'Server responded with an error');
+    }
+    try {
+      return JSON.parse(text);
+    } catch (parseErr) {
+      console.error('[uploadImageForOcr] Invalid JSON:', text);
+      throw new Error('Unexpected server response');
+    }
   } catch (err) {
-    console.error('❌ [uploadImageForOcr] network or server error:', err);
-    return { success: false, error: 'Network or server error' };
+    console.error('❌ [uploadImageForOcr] network/server error:', err);
+    return { success: false, error: err.message };
   }
 }
 

@@ -1,6 +1,6 @@
 // src/components/Header.js
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 
 const coloredLetters = [
   { letter: 'N', color: '#2563eb' },
@@ -11,9 +11,14 @@ const coloredLetters = [
   { letter: 'o', color: '#8b5cf6' },
 ];
 
-export default function Header() {
+export default function Header({ leftIcon, onLeftIconPress }) {
   return (
     <View style={styles.container}>
+      {leftIcon && (
+        <Pressable style={styles.leftIcon} onPress={onLeftIconPress}>
+          {leftIcon}
+        </Pressable>
+      )}
       <Text style={styles.title}>
         {coloredLetters.map(({ letter, color }, i) => (
           <Text key={i} style={{ color }}>{letter}</Text>
@@ -32,6 +37,13 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     alignItems: 'center',
     backgroundColor: 'transparent',  // let the gradient show through
+    position: 'relative',             // so we can absolutely position the icon
+  },
+  leftIcon: {
+    position: 'absolute',
+    left: 16,
+    top: 40,      // aligns icon with the top padding where the title begins
+    padding: 8,
   },
   title: {
     fontSize: 28,

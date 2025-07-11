@@ -1,17 +1,9 @@
 // src/screens/HomeScreen.js
-// Scroll and lock, press to record.
 
-import React, {
-  useEffect,
-  useState,
-  useRef,
-  useContext,
-  useCallback,
-} from 'react';
+import React, { useEffect, useState, useRef, useContext, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   Alert,
   ScrollView,
@@ -23,6 +15,8 @@ import {
   TextInput,
   Platform,
   PermissionsAndroid,
+  Dimensions,
+  StyleSheet,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,63 +28,64 @@ import { useIsFocused } from '@react-navigation/native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
 import LanguageColumn from '../components/LanguageColumn';
-import languages from '../constants/languages';
+import { languages } from '../constants/languages';
 import { SETTINGS_KEY, LANGPAIR_KEY } from '../constants/storageKeys';
 import { uploadAudio, uploadText } from '../services/api';
 import { QuotaContext } from '../contexts/QuotaContext';
 
-// Shrink the visible flag window to 100×100
-const ITEM_HEIGHT = 100;
-const HISTORY_KEY  = 'nativoHistory';
+const HISTORY_KEY = 'nativoHistory';
 
 export default function HomeScreen() {
-  // State & refs
-  const [lang1, setLang1]                   = useState(languages[0]);
-  const [lang2, setLang2]                   = useState(languages[1]);
-  const [locked, setLocked]                 = useState(false);
-  const [count1, setCount1]                 = useState(null);
-  const [count2, setCount2]                 = useState(null);
-  const [loading, setLoading]               = useState(false);
-  const [inFlight, setInFlight]             = useState(false);
-  const [translation, setTranslation]       = useState(null);
-  const [leftChatModal, setLeftChatModal]   = useState(false);
+  // state & refs
+  const [lang1, setLang1] = useState(languages[0]);
+  const [lang2, setLang2] = useState(languages[1]);
+  const [locked, setLocked] = useState(false);
+  const [count1, setCount1] = useState(null);
+  const [count2, setCount2] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [inFlight, setInFlight] = useState(false);
+  const [activeSide, setActiveSide] = useState(null);
+  const [translation, setTranslation] = useState(null);
+  const [leftChatModal, setLeftChatModal] = useState(false);
   const [rightChatModal, setRightChatModal] = useState(false);
-  const [leftChatInput, setLeftChatInput]   = useState('');
+  const [leftChatInput, setLeftChatInput] = useState('');
   const [rightChatInput, setRightChatInput] = useState('');
-  const [storeVisible, setStoreVisible]     = useState(false);
+  const [storeVisible, setStoreVisible] = useState(false);
 
-  // Prevent rapid re-taps
   const recordLock = useRef({ left: false, right: false });
   const lastAction = useRef(0);
-  const stopped1   = useRef(false);
-  const stopped2   = useRef(false);
-  const timer      = useRef(null);
-  const isFocused  = useIsFocused();
+  const stopped1 = useRef(false);
+  const stopped2 = useRef(false);
+  const timer = useRef(null);
 
-  // Stub IAP products until real setup
-  const products = [
-    { productId: 'bundle_starter_30min10scan', title: 'Starter Pack', description: '30 min voice + 10 scans', priceString: '$2.99' },
-    { productId: 'bundle_regular_60min25scan', title: 'Regular Pack', description: '60 min voice + 25 scans', priceString: '$4.99' },
-    { productId: 'bundle_pro_120min50scan',     title: 'Pro Pack',     description: '120 min voice + 50 scans', priceString: '$8.99' },
-  ];
+  // NEW: track recording start time
+  const startTimeRef = useRef(null);
 
-  // Settings
-  const [settings, setSettings] = useState({
-    speaker1Gender: 'neutral',
-    speaker2Gender: 'neutral',
-    formality:       'formal',
-    autoplay:        true,
-    recordDuration:  5,
-  });
+  const isFocused = useIsFocused();
 
   // Quota context
   const { quota: rawQuota, loading: quotaLoading, refreshQuota } = useContext(QuotaContext);
-  const quota = rawQuota || {};
-  const effectiveQuota = __DEV__
-    ? { remainingSeconds: Number.MAX_SAFE_INTEGER, interpretationsLeft: Number.MAX_SAFE_INTEGER }
-    : quota;
 
-  // Load settings
+  // How many seconds are left, across all credits:
+  const secondsLeft = rawQuota
+    ? rawQuota.creditsLeft * rawQuota.secsPerCredit - rawQuota.secondsAccumulated
+    : 0;
+
+  const [settings, setSettings] = useState({
+    speaker1Gender: 'neutral',
+    speaker2Gender: 'neutral',
+    formality: 'formal',
+    autoplay: true,
+    recordDuration: 5,
+  });
+
+  const products = [
+    { productId: 'bundle_starter_30min10scan', title: 'Starter Pack', description: '30 min voice + 10 scans', priceString: '$2.99' },
+    { productId: 'bundle_regular_60min25scan', title: 'Regular Pack', description: '60 min voice + 25 scans', priceString: '$4.99' },
+    { productId: 'bundle_pro_120min50scan', title: 'Pro Pack', description: '120 min voice + 50 scans', priceString: '$8.99' },
+  ];
+
+  // load settings
   const loadSettings = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(SETTINGS_KEY);
@@ -100,64 +95,60 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // Initialize audio and permissions
   useEffect(() => {
     (async () => {
       if (Platform.OS === 'android') {
-        const res = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
-        );
+        const res = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
         if (res !== PermissionsAndroid.RESULTS.GRANTED) {
           Alert.alert('Permission required', 'Microphone access is needed.');
         }
       }
-      AudioRecord.init({
-        sampleRate:    16000,
-        channels:      1,
-        bitsPerSample: 16,
-        wavFile:       'nativo.wav',
-      });
+      AudioRecord.init({ sampleRate: 16000, channels: 1, bitsPerSample: 16, wavFile: 'nativo.wav' });
     })();
     loadSettings();
     return () => clearInterval(timer.current);
   }, [loadSettings]);
 
-  // Reload settings on focus
   useEffect(() => {
     if (isFocused) loadSettings();
   }, [isFocused, loadSettings]);
 
-  // Play a local sound asset
+  // ─── FETCH LATEST QUOTA ON MOUNT ───────────────────────
+  useEffect(() => {
+    refreshQuota();
+  }, []);
+
+  // play ding/stop sounds
   const playSound = async soundFile => {
     const { sound } = await Audio.Sound.createAsync(soundFile, { shouldPlay: true });
-    sound.setOnPlaybackStatusUpdate(status =>
-      status.didJustFinish && sound.unloadAsync()
-    );
+    sound.setOnPlaybackStatusUpdate(status => status.didJustFinish && sound.unloadAsync());
   };
 
-  // Start voice recording
+  // recording flow
   const startRecording = async side => {
-    const now = Date.now();
-    if (now - lastAction.current < 500) return;
-    lastAction.current = now;
-    if (recordLock.current[side] || inFlight) return;
-    recordLock.current[side] = true;
-
-    const current = side === 'left' ? count1 : count2;
-    if (current != null) return;
-
-    if (!locked) {
-      Haptics.selectionAsync();
-      recordLock.current[side] = false;
-      return;
+    if (!locked) return Alert.alert('Locked', 'Press the lock icon to start recording.');
+    if (secondsLeft <= 0) {
+      return Alert.alert('Out of credits', 'You are out of time – buy more credits!');
     }
-
+    const now = Date.now();
+    if (now - lastAction.current < 500 || recordLock.current[side] || inFlight) return;
+    lastAction.current = now;
+    recordLock.current[side] = true;
+    setActiveSide(side);
+    setInFlight(true);
     Haptics.selectionAsync();
     await playSound(require('../../assets/ding.mp3'));
 
-    let secs = settings.recordDuration;
+    // Cap duration by seconds left
+    let secs = Math.min(settings.recordDuration, secondsLeft);
     side === 'left' ? setCount1(secs) : setCount2(secs);
-    AudioRecord.start();
+
+    // NEW: record start timestamp
+    startTimeRef.current = Date.now();
+
+    AudioRecord.start({
+      maxDurationSec: secs,
+    });
 
     timer.current = setInterval(() => {
       secs -= 1;
@@ -169,110 +160,101 @@ export default function HomeScreen() {
     }, 1000);
   };
 
-  // Stop recording and upload
   const stopRecording = async side => {
     const now = Date.now();
     if (now - lastAction.current < 500) return;
     lastAction.current = now;
-    if (inFlight) return;
     const setC = side === 'left' ? setCount1 : setCount2;
-    const stop = side === 'left' ? stopped1 : stopped2;
-    if (stop.current) return;
-    stop.current = true;
+    const stopRef = side === 'left' ? stopped1 : stopped2;
+    if (stopRef.current) return;
+    stopRef.current = true;
 
     clearInterval(timer.current);
     setC(null);
-
     setLoading(true);
-    setInFlight(true);
+
     try {
+      // NEW: calculate elapsed seconds
+      const durationMs = Date.now() - (startTimeRef.current || Date.now());
+      const durationSec = Math.ceil(durationMs / 1000);
+
       const rawPath = await AudioRecord.stop();
       if (!rawPath) throw new Error('No audio recorded.');
       await playSound(require('../../assets/stop.mp3'));
 
       const uri = rawPath.startsWith('file://') ? rawPath : `file://${rawPath}`;
-      const src = side === 'left' ? lang1.code : lang2.code;
-      const tgt = side === 'left' ? lang2.code : lang1.code;
-
+      const src = side === 'left' ? lang1.value : lang2.value;
+      const tgt = side === 'left' ? lang2.value : lang1.value;
       const result = await uploadAudio({
         uri,
-        speakerGender:  side === 'left' ? settings.speaker1Gender : settings.speaker2Gender,
+        durationSec,
+        speakerGender: side === 'left' ? settings.speaker1Gender : settings.speaker2Gender,
         listenerGender: side === 'left' ? settings.speaker2Gender : settings.speaker1Gender,
-        formality:      settings.formality,
+        formality: settings.formality,
         sourceLanguage: src,
         targetLanguage: tgt,
       });
       if (!result.success) throw new Error(result.error || 'Upload failed');
       setTranslation(result);
 
-      // Auto-play TTS
       if (result.ttsAudioUrl && settings.autoplay) {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: result.ttsAudioUrl },
-          { shouldPlay: true }
-        );
-        sound.setOnPlaybackStatusUpdate(s =>
-          s.didJustFinish && sound.unloadAsync()
-        );
+        const { sound } = await Audio.Sound.createAsync({ uri: result.ttsAudioUrl }, { shouldPlay: true });
+        sound.setOnPlaybackStatusUpdate(s => s.didJustFinish && sound.unloadAsync());
       }
 
       await refreshQuota();
-      // Save history
-      try {
-        const entry = {
-          original:   result.original,
-          translated: result.translated,
-          timestamp:  Date.now(),
-          from:       side === 'left' ? lang1.label : lang2.label,
-          to:         side === 'left' ? lang2.label : lang1.label,
-          type:       'voice',
-        };
-        const raw = await AsyncStorage.getItem(HISTORY_KEY);
-        const arr = raw ? JSON.parse(raw) : [];
-        arr.unshift(entry);
-        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
-      } catch (e) {
-        console.warn('Failed to save voice history', e);
-      }
+
+      // save history
+      const entry = {
+        original: result.original,
+        translated: result.translated,
+        timestamp: Date.now(),
+        from: side === 'left' ? lang1.label : lang2.label,
+        to: side === 'left' ? lang2.label : lang1.label,
+        type: 'voice',
+      };
+      const rawHistory = await AsyncStorage.getItem(HISTORY_KEY);
+      const arr = rawHistory ? JSON.parse(rawHistory) : [];
+      arr.unshift(entry);
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {
       setLoading(false);
       setInFlight(false);
+      setActiveSide(null);
       recordLock.current[side] = false;
-      stop.current = false;
+      stopRef.current = false;
     }
   };
 
-  // Handle text-chat translation
+  // text-chat translation with estimated billing
   const handleChat = async side => {
-    const text = side === 'left' ? leftChatInput : rightChatInput;
-    if (!text.trim()) return;
-
-    if (!locked) {
-      setLocked(true);
-      Haptics.selectionAsync();
-      try {
-        await AsyncStorage.setItem(
-          LANGPAIR_KEY,
-          JSON.stringify({ source: lang1.code, target: lang2.code })
-        );
-      } catch (e) {
-        console.warn('Failed to save lang pair', e);
-      }
-    }
-
+    if (!locked) return Alert.alert('Locked', 'Press the lock icon to enable translation.');
+    const text = side === 'left' ? leftChatInput.trim() : rightChatInput.trim();
+    if (!text) return;
+    setActiveSide(side);
+    setInFlight(true);
     setLoading(true);
+
     try {
-      const src = side === 'left' ? lang1.code : lang2.code;
-      const tgt = side === 'left' ? lang2.code : lang1.code;
+      const src = side === 'left' ? lang1.value : lang2.value;
+      const tgt = side === 'left' ? lang2.value : lang1.value;
+      const speakerG = side === 'left' ? settings.speaker1Gender : settings.speaker2Gender;
+      const listenerG = side === 'left' ? settings.speaker2Gender : settings.speaker1Gender;
+
+      // NEW: estimate duration from word count (3 wps)
+      const wordCount = text.split(/\s+/).length;
+      const durationSec = Math.ceil(wordCount / 3);
+
       const result = await uploadText(
         text,
         src,
         tgt,
-        settings.speaker1Gender,
-        settings.speaker2Gender,
-        settings.formality
+        speakerG,
+        listenerG,
+        settings.formality,
+        durationSec
       );
       if (!result.success) throw new Error(result.error || 'Translate-text failed');
       setTranslation(result);
@@ -282,66 +264,57 @@ export default function HomeScreen() {
           { uri: result.ttsAudioUrl },
           { shouldPlay: true }
         );
-        sound.setOnPlaybackStatusUpdate(s =>
-          s.didJustFinish && sound.unloadAsync()
+        sound.setOnPlaybackStatusUpdate(
+          status => status.didJustFinish && sound.unloadAsync()
         );
       }
 
       await refreshQuota();
-      // Save chat history
-      try {
-        const entry = {
-          original:   result.original,
-          translated: result.translated,
-          timestamp:  Date.now(),
-          from:       side === 'left' ? lang1.label : lang2.label,
-          to:         side === 'left' ? lang2.label : lang1.label,
-          type:       'text',
-        };
-        const raw = await AsyncStorage.getItem(HISTORY_KEY);
-        const arr = raw ? JSON.parse(raw) : [];
-        arr.unshift(entry);
-        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
-      } catch (e) {
-        console.warn('Failed to save text history', e);
-      }
+
+      // history
+      const entry = {
+        original: result.original,
+        translated: result.translated,
+        timestamp: Date.now(),
+        from: side === 'left' ? lang1.label : lang2.label,
+        to: side === 'left' ? lang2.label : lang1.label,
+        type: 'text',
+      };
+      const rawHistory = await AsyncStorage.getItem(HISTORY_KEY);
+      const arr = rawHistory ? JSON.parse(rawHistory) : [];
+      arr.unshift(entry);
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {
       setLoading(false);
-      side === 'left' ? setLeftChatInput('') : setRightChatInput('');
+      setInFlight(false);
+      if (side === 'left') setLeftChatInput('');
+      else setRightChatInput('');
     }
   };
 
-  // Stub purchase until IAP
-  const buyAddOn = async productId => {
-    setLoading(true);
-    try {
-      const resp = await uploadText('', productId, '', '', '', '');
-      if (!resp.success) throw new Error(resp.error || 'Purchase failed');
-      await refreshQuota();
-      Alert.alert(
-        'Purchase successful',
-        `You now have ${Math.floor(resp.remainingSeconds / 60)} min & ${resp.remainingScans} scans.`
-      );
-    } catch (err) {
-      Alert.alert('Purchase failed', err.message || 'Try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Render ---
+  // render
   return (
     <ScreenWrapper>
-      <Header title="Voice Translate" />
+      <Header
+        leftIcon={<Ionicons name="cart-outline" size={24} color="#3b82f6" />}
+        onLeftIconPress={() => setStoreVisible(true)}
+      />
 
+      {/* UPDATED QUOTA DISPLAY */}
       <Text style={styles.quotaText}>
-        🎙️ {effectiveQuota.interpretationsLeft ?? 0} interpretations left
+        🎟️ {rawQuota?.creditsLeft ?? 0} credits | ⏱️ {rawQuota
+          ? rawQuota.creditsLeft * rawQuota.secsPerCredit - rawQuota.secondsAccumulated
+          : 0}s
       </Text>
-      <TouchableOpacity style={styles.buyMoreBtn} onPress={() => setStoreVisible(true)}>
-        <Text style={styles.buyMoreText}>Buy More Minutes & Scans</Text>
-      </TouchableOpacity>
+
+      {/* SHOW RED WARNING WHEN OUT OF TIME */}
+      {secondsLeft <= 0 && (
+        <Text style={styles.warningText}>
+          No time left – buy more credits!
+        </Text>
+      )}
 
       <View style={styles.lockHintWrapper}>
         {locked ? (
@@ -356,147 +329,121 @@ export default function HomeScreen() {
           </View>
         )}
       </View>
-
-<View style={styles.languageRow}>
-  {/* Left picker + button in a column */}
-  <View style={styles.pickerContainer}>
-    <View style={styles.languageWrapper}>
-      <LanguageColumn
-        selected={lang1}
-        onSelect={setLang1}
-        onStart={() => startRecording('left')}
-        onStop={() => stopRecording('left')}
-        countdown={count1}
-        locked={locked}
-        excludeCode={lang2.code}
-      />
-    </View>
-    <TouchableOpacity
-      style={styles.textChatButton}
-      onPress={() => setLeftChatModal(true)}
-      disabled={inFlight}
-    >
-      <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3b82f6" />
-      <Text style={styles.textChatLabel}>Text</Text>
-    </TouchableOpacity>
-  </View>
-
-  {/* Swap/Lock icon between columns */}
-  <TouchableOpacity
-    style={styles.swapIcon}
-    disabled={loading || count1 != null || count2 != null}
-    onPress={async () => {
-      const nl = !locked;
-      setLocked(nl);
-      Haptics.selectionAsync();
-      if (nl) {
-        try {
-          await AsyncStorage.setItem(
-            LANGPAIR_KEY,
-            JSON.stringify({ source: lang1.code, target: lang2.code })
-          );
-        } catch (e) {
-          console.warn('Failed to save lang pair', e);
-        }
-      }
-    }}
-  >
-    <Ionicons
-      name={locked ? 'lock-closed-outline' : 'lock-open-outline'}
-      size={32}
-      color="#3b82f6"
-    />
-  </TouchableOpacity>
-
-  {/* Right picker + button in a column */}
-  <View style={styles.pickerContainer}>
-    <View style={styles.languageWrapper}>
-      <LanguageColumn
-        selected={lang2}
-        onSelect={setLang2}
-        onStart={() => startRecording('right')}
-        onStop={() => stopRecording('right')}
-        countdown={count2}
-        locked={locked}
-        excludeCode={lang1.code}
-      />
-    </View>
-    <TouchableOpacity
-      style={styles.textChatButton}
-      onPress={() => setRightChatModal(true)}
-      disabled={inFlight}
-    >
-      <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3b82f6" />
-      <Text style={styles.textChatLabel}>Text</Text>
-    </TouchableOpacity>
-  </View>
-</View>
-
-
-      {loading && <ActivityIndicator size="large" color="#0ea5e9" style={{ marginTop: 20 }} />}
-
+      <View style={styles.languageRow}>
+        {/* Left column */}
+        <View style={styles.pickerContainer}>
+          <View pointerEvents={inFlight && activeSide==='right' ? 'none' : 'auto'}>
+            <LanguageColumn
+              selected={lang1}
+              onSelect={setLang1}
+              onStart={()=>startRecording('left')}
+              onStop={()=>stopRecording('left')}
+              countdown={count1}
+              locked={locked}
+              excludeCode={lang2.value}
+              disabled={quotaLoading || secondsLeft <= 0}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.textChatButton}
+            disabled={!locked||inFlight}
+            onPress={()=> locked? setLeftChatModal(true) : Alert.alert('Locked','Press the lock icon to enable translation.')}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3b82f6" />
+            <Text style={styles.textChatLabel}>Text</Text>
+          </TouchableOpacity>
+        </View>
+        {/* Lock / swap */}
+        <TouchableOpacity
+          style={styles.swapIcon}
+          disabled={loading||count1!=null||count2!=null}
+          onPress={async ()=>{
+            const nl = !locked;
+            setLocked(nl);
+            Haptics.selectionAsync();
+            if(nl){
+              await AsyncStorage.setItem(LANGPAIR_KEY, JSON.stringify({source:lang1.value,target:lang2.value}));
+            }
+          }}
+        >
+          <Ionicons name={locked?'lock-closed-outline':'lock-open-outline'} size={32} color="#3b82f6" />
+        </TouchableOpacity>
+        {/* Right column */}
+        <View style={styles.pickerContainer}>
+          <View pointerEvents={inFlight && activeSide==='left' ? 'none' : 'auto'}>
+            <LanguageColumn
+              selected={lang2}
+              onSelect={setLang2}
+              onStart={()=>startRecording('right')}
+              onStop={()=>stopRecording('right')}
+              countdown={count2}
+              locked={locked}
+              excludeCode={lang1.value}
+              disabled={quotaLoading || secondsLeft <= 0}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.textChatButton}
+            disabled={!locked||inFlight}
+            onPress={()=> locked? setRightChatModal(true) : Alert.alert('Locked','Press the lock icon to enable translation.')}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3b82f6" />
+            <Text style={styles.textChatLabel}>Text</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      {loading && <ActivityIndicator size="large" color="#0ea5e9" style={styles.loading} />}
       {translation && (
-        <ScrollView style={styles.translationScrollContainer}>
+        <ScrollView style={styles.translationScrollContainer} nestedScrollEnabled contentContainerStyle={{paddingBottom:20}}>
           <View style={styles.translationCard}>
             <Text style={styles.translationLabel}>Original</Text>
             <Text style={styles.translationText}>{translation.original}</Text>
-            <Text style={[styles.translationLabel, { marginTop: 12 }]}>Translated</Text>
+            <Text style={[styles.translationLabel,{marginTop:12}]}>Translated</Text>
             <Text style={styles.translationText}>{translation.translated}</Text>
           </View>
         </ScrollView>
       )}
-
-      {/* Store Modal */}
-      <Modal visible={storeVisible} animationType="slide" onRequestClose={() => setStoreVisible(false)}>
+      {/* Store modal */}
+      <Modal visible={storeVisible} animationType="slide" onRequestClose={()=>setStoreVisible(false)}>
         <View style={styles.storeModal}>
           <Text style={styles.storeTitle}>Top-Up Bundles</Text>
           <FlatList
             data={products}
-            keyExtractor={i => i.productId}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.storeItem} onPress={() => buyAddOn(item.productId)}>
-                <Text style={styles.storeName}>
-                  {item.title} — {item.priceString}
-                </Text>
+            keyExtractor={i=>i.productId}
+            ItemSeparatorComponent={()=> <View style={styles.separator} />}
+            renderItem={({item})=>(
+              <TouchableOpacity style={styles.storeItem} onPress={()=>buyAddOn(item.productId)}>
+                <Text style={styles.storeName}>{`${item.title} — ${item.priceString}`}</Text>
                 <Text style={styles.storeDesc}>{item.description}</Text>
               </TouchableOpacity>
             )}
           />
-          <TouchableOpacity onPress={() => setStoreVisible(false)}>
+          <TouchableOpacity onPress={()=>setStoreVisible(false)}>
             <Text style={styles.storeClose}>✕ Close</Text>
           </TouchableOpacity>
         </View>
       </Modal>
-
-      {/* Left Chat Modal */}
-      <Modal
-        visible={leftChatModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setLeftChatModal(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setLeftChatModal(false)}>
-          <Pressable style={styles.modalContentContainer} onPress={e => e.stopPropagation()}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.modalInner}
-            >
-              <Text style={styles.modalTitle}>{lang1.label} → {lang2.label}</Text>
+      {/* Left chat */}
+      <Modal visible={leftChatModal} transparent animationType="slide" onRequestClose={()=>setLeftChatModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={()=>setLeftChatModal(false)}>
+          <Pressable style={styles.modalContentContainer} onPress={e=>e.stopPropagation()}>
+            <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={20} style={styles.modalInner}>
+              <Text style={styles.modalTitle}>{`${lang1.label} → ${lang2.label}`}</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="Type your message."
                 value={leftChatInput}
                 onChangeText={setLeftChatInput}
-                multiline
-                maxLength={150}
-                autoFocus
+                multiline maxLength={150} autoFocus
               />
               <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.modalCancel} onPress={() => setLeftChatModal(false)}>
-                  <Text>Cancel</Text>
+                <TouchableOpacity style={styles.modalCancel} onPress={()=>setLeftChatModal(false)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalSend} onPress={() => { handleChat('left'); setLeftChatModal(false); }}>
+                <TouchableOpacity style={styles.modalSend} onPress={()=>{
+                  handleChat('left');
+                  setLeftChatModal(false);
+                }}>
                   <Text style={styles.modalSendText}>Send</Text>
                 </TouchableOpacity>
               </View>
@@ -504,35 +451,27 @@ export default function HomeScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-
-      {/* Right Chat Modal */}
-      <Modal
-        visible={rightChatModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setRightChatModal(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setRightChatModal(false)}>
-          <Pressable style={styles.modalContentContainer} onPress={e => e.stopPropagation()}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.modalInner}
-            >
-              <Text style={styles.modalTitle}>{lang2.label} → {lang1.label}</Text>
+      {/* Right chat */}
+      <Modal visible={rightChatModal} transparent animationType="slide" onRequestClose={()=>setRightChatModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={()=>setRightChatModal(false)}>
+          <Pressable style={styles.modalContentContainer} onPress={e=>e.stopPropagation()}>
+            <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={20} style={styles.modalInner}>
+              <Text style={styles.modalTitle}>{`${lang2.label} → ${lang1.label}`}</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="Type your message."
                 value={rightChatInput}
                 onChangeText={setRightChatInput}
-                multiline
-                maxLength={150}
-                autoFocus
+                multiline maxLength={150} autoFocus
               />
               <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.modalCancel} onPress={() => setRightChatModal(false)}>
-                  <Text>Cancel</Text>
+                <TouchableOpacity style={styles.modalCancel} onPress={()=>setRightChatModal(false)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalSend} onPress={() => { handleChat('right'); setRightChatModal(false); }}>
+                <TouchableOpacity style={styles.modalSend} onPress={()=>{
+                  handleChat('right');
+                  setRightChatModal(false);
+                }}>
                   <Text style={styles.modalSendText}>Send</Text>
                 </TouchableOpacity>
               </View>
@@ -545,33 +484,14 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
   quotaText: {
     margin: 16,
     fontSize: 16,
-    width: '90%',
     textAlign: 'center',
   },
-  buyMoreBtn: {
-    backgroundColor: '#fde047',
-    padding: 12,
-    borderRadius: 8,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  buyMoreText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
   lockHintWrapper: {
-    width: '100%',
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 4,
+    marginVertical: 8,
   },
   lockHintRow: {
     flexDirection: 'row',
@@ -581,7 +501,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#3b82f6',
-    textAlign: 'center',
   },
   lockHintIcon: {
     marginHorizontal: 6,
@@ -597,39 +516,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 16,
   },
-  languageWrapper: {
-    width:  ITEM_HEIGHT,      // 100px wide
-    height: ITEM_HEIGHT,      // 100px tall, no extra
-    backgroundColor: '#ffffff', 
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 8,
-    elevation: 2,
-  },
   pickerContainer: {
-    flexDirection: 'column',
-    alignItems:    'center',
-    width:         ITEM_HEIGHT,   // same as languageWrapper width
+    alignItems: 'center',
     marginHorizontal: 8,
   },
-  scrollWrapper: {
-    height: ITEM_HEIGHT,      // 100px
-    width:  ITEM_HEIGHT,      // 100px
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-  },
-  flagItem: {
-    height: ITEM_HEIGHT,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  flagText: { fontSize: 48 },
-  langLabel: { fontSize: 14, fontWeight: '600', color: '#334155' },
-  countdown: { fontSize: 20, fontWeight: '700', color: '#dc2626' },
-  recordingActive: { backgroundColor: '#fee2e2', borderRadius: 16 },
   swapIcon: {
     marginTop: 40,
     marginHorizontal: 8,
@@ -641,114 +531,27 @@ const styles = StyleSheet.create({
   textChatButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
     marginTop: 8,
-    alignSelf: 'center',
   },
   textChatLabel: {
     marginLeft: 6,
     fontWeight: '600',
     color: '#3b82f6',
   },
-  storeModal: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: '#fff',
-  },
-  storeTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  storeItem: {
-    paddingVertical: 12,
-  },
-  storeName: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  storeDesc: {
-    fontSize: 13,
-    color: '#475569',
-    marginTop: 4,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#e5e7eb',
-    marginVertical: 8,
-  },
-  storeClose: {
-    textAlign: 'center',
-    color: '#ef4444',
+  loading: {
     marginTop: 20,
-    fontSize: 16,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'transparent', 
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  modalContentContainer: {
-    width: '90%',
-    maxHeight: '80%',
-    backgroundColor: '#d0ebff',   // pale-blue modal background
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  modalInner: {
-    padding: 16,
-  },
-  modalTitle: {
-    fontWeight: '700',
-    fontSize: 16,
-    marginBottom: 12,
-    color: '#334155',
-  },
-  modalInput: {
-    minHeight: 80,
-    maxHeight: 150,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 8,
-    backgroundColor: '#ffffff',   
-    textAlignVertical: 'top',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 12,
-  },
-  modalCancel: {
-    marginRight: 16,
-    padding: 8,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 6,
-  },
-  modalSend: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  modalSendText: {
-    fontWeight: '600',
-    color: 'white',
   },
   translationScrollContainer: {
-    flex: 1,
-    alignSelf: 'center',
     width: '90%',
+    alignSelf: 'center',
     marginTop: 20,
+    maxHeight: Dimensions.get('window').height * 0.4,
   },
   translationCard: {
-    backgroundColor: '#fff9c4',  // pale-yellow card
+    backgroundColor: '#fff9c4',
     padding: 20,
     borderRadius: 18,
   },
@@ -763,5 +566,97 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     marginTop: 4,
     lineHeight: 24,
+  },
+  storeModal: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  storeTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  storeItem: {
+    paddingVertical: 12,
+  },
+  storeName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  storeDesc: {
+    fontSize: 14,
+    color: '#475569',
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 8,
+  },
+  storeClose: {
+    marginTop: 16,
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#3b82f6',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    padding: 20,
+  },
+  modalContentContainer: {
+    width: '90%',
+    maxHeight: '80%',
+    backgroundColor: '#e0f2fe',
+    borderRadius: 18,
+    overflow: 'hidden',
+    alignSelf: 'center',
+  },
+  modalInner: {
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  modalInput: {
+    minHeight: 80,
+    maxHeight: 150,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 8,
+    backgroundColor: '#fff',
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+  },
+  modalCancel: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#f1f5f9',
+    marginRight: 12,
+  },
+  modalCancelText: {
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  modalSend: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#3b82f6',
+  },
+  modalSendText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });

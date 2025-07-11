@@ -1,6 +1,8 @@
+// components/LanguageColumn.js
+
 import React, { useEffect, useRef } from 'react';
 import { View, FlatList, Pressable, Text, StyleSheet } from 'react-native';
-import languages from '../constants/languages';
+import { languages } from '../constants/languages';
 
 const ITEM_HEIGHT = 100;
 
@@ -14,28 +16,31 @@ export default function LanguageColumn({
   excludeCode,
 }) {
   const listRef = useRef(null);
+
+  // Filter out the excluded code and sort alphabetically
   const filtered = languages
-    .filter(l => l.code !== excludeCode)
+    .filter((l) => l.value !== excludeCode)
     .sort((a, b) => a.label.localeCompare(b.label));
 
+  // Scroll to the selected language on mount/update
   useEffect(() => {
-    const idx = filtered.findIndex(l => l.code === selected.code);
+    const idx = filtered.findIndex((l) => l.value === selected.value);
     if (idx >= 0 && listRef.current) {
       listRef.current.scrollToOffset({ offset: idx * ITEM_HEIGHT, animated: false });
     }
-  }, [selected]);
+  }, [selected, filtered]);
 
-  const handlePress = item => {
-    if (item.code === selected.code && countdown != null) {
+  const handlePress = (item) => {
+    if (item.value === selected.value && countdown != null) {
       onStop();
       return;
     }
-    if (item.code !== selected.code && countdown != null) return;
-    if (item.code !== selected.code) onSelect(item);
+    if (item.value !== selected.value && countdown != null) return;
+    if (item.value !== selected.value) onSelect(item);
     onStart();
   };
 
-  const handleScrollEnd = e => {
+  const handleScrollEnd = (e) => {
     if (locked || countdown != null) return;
     const idx = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
     const lang = filtered[idx];
@@ -45,10 +50,11 @@ export default function LanguageColumn({
   return (
     <View style={styles.scrollWrapper}>
       {countdown != null && <Text style={styles.countdown}>{countdown}</Text>}
+
       <FlatList
         ref={listRef}
         data={filtered}
-        keyExtractor={i => i.code}
+        keyExtractor={(i) => i.value}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
@@ -60,11 +66,10 @@ export default function LanguageColumn({
           index: idx,
         })}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => handlePress(item)}
-            style={styles.flagItem}
-          >
-            <Text style={styles.flagText}>{item.flag}</Text>
+          <Pressable onPress={() => handlePress(item)} style={styles.flagItem}>
+            {/* Render flag emoji */}
+            <Text style={styles.flagEmoji}>{item.flag}</Text>
+            {/* Render language label */}
             <Text style={styles.langLabel}>{item.label}</Text>
           </Pressable>
         )}
@@ -87,7 +92,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  flagText: { fontSize: 48 },
-  langLabel: { fontSize: 14, fontWeight: '600', color: '#334155' },
-  countdown: { fontSize: 20, fontWeight: '700', color: '#dc2626' },
+  flagEmoji: {
+    fontSize: 32,
+    marginBottom: 4,
+  },
+  langLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+    textAlign: 'center',
+  },
+  countdown: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#dc2626',
+  },
 });
+

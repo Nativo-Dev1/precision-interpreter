@@ -1,10 +1,11 @@
-// frontend/src/screens/ResetPasswordScreen.js
+// src/screens/ResetPasswordScreen.js
 
 import React, { useState } from 'react';
 import { View, Text, TextInput, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
 import PrimaryButton from '../components/PrimaryButton';
+import Constants from 'expo-constants';
 
 export default function ResetPasswordScreen({ route, navigation }) {
   const { token, email } = route.params || {};
@@ -20,7 +21,7 @@ export default function ResetPasswordScreen({ route, navigation }) {
     setLoading(true);
     try {
       const resp = await fetch(
-        'https://nativo-backend.onrender.com/reset-password',
+        `${Constants.expoConfig.extra.BACKEND_URL}/reset-password`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -121,3 +122,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+

@@ -1,8 +1,9 @@
-// frontend/src/contexts/QuotaContext.js
+// src/contexts/QuotaContext.js
 
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useRef, useEffect, useCallback } from 'react';
 import { fetchQuota as fetchQuotaFromService } from '../services/api';
 
+// Context default values
 export const QuotaContext = createContext({
   quota: {
     expiresAt: null,
@@ -25,46 +26,41 @@ export function QuotaProvider({ children }) {
   });
   const [loading, setLoading] = useState(true);
 
-  const fetchQuota = async () => {
+  // Cache ref holds last fetch time and data
+  const cacheRef = useRef({ time: 0, data: null });
+
+  // Fetch quota with 30s caching
+  const fetchQuota = useCallback(async () => {
+    const now = Date.now();
+    // Reuse cached data if under 30 seconds old
+    if (cacheRef.current.data && now - cacheRef.current.time < 30_000) {
+      setQuota(cacheRef.current.data);
+      return;
+    }
+
     setLoading(true);
     try {
-      // fetchQuotaFromService returns an object like { expiresAt, plan, interpretationsLeft, remainingScans, remainingSeconds }
       const data = await fetchQuotaFromService();
-      if (data) {
-        setQuota({
-          expiresAt: data.expiresAt,
-          plan: data.plan,
-          interpretationsLeft: data.interpretationsLeft ?? 0,
-          remainingScans: data.remainingScans ?? 0,
-          remainingSeconds: data.remainingSeconds ?? 0,
-        });
-      } else {
-        // If data is null/undefined, default to zeros
-        setQuota({
-          expiresAt: null,
-          plan: null,
-          interpretationsLeft: 0,
-          remainingScans: 0,
-          remainingSeconds: 0,
-        });
-      }
-    } catch (e) {
-      console.warn('❌ [QuotaContext] Failed to fetch quota', e);
-      setQuota({
-        expiresAt: null,
-        plan: null,
-        interpretationsLeft: 0,
-        remainingScans: 0,
-        remainingSeconds: 0,
-      });
+      const normalized = {
+        expiresAt: data.expiresAt ?? null,
+        plan: data.plan ?? null,
+        interpretationsLeft: data.interpretationsLeft ?? 0,
+        remainingScans: data.remainingScans ?? 0,
+        remainingSeconds: data.remainingSeconds ?? 0,
+      };
+      setQuota(normalized);
+      cacheRef.current = { time: now, data: normalized };
+    } catch (err) {
+      console.warn('❌ [QuotaContext] Failed to fetch quota', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Initial fetch on mount
   useEffect(() => {
     fetchQuota();
-  }, []);
+  }, [fetchQuota]);
 
   return (
     <QuotaContext.Provider value={{ quota, loading, refreshQuota: fetchQuota }}>

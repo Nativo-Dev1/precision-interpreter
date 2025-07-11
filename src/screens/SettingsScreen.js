@@ -40,11 +40,12 @@ export default function SettingsScreen() {
   }, []);
 
   // Helpers to cycle through gender and duration options
+  // Swapped male/female so cycle is neutral → female → male → neutral
   const cycleGender = (current) =>
     current === 'neutral'
-      ? 'male'
-      : current === 'male'
       ? 'female'
+      : current === 'female'
+      ? 'male'
       : 'neutral';
   const cycleDuration = (current) => (current === 5 ? 10 : 5);
 
@@ -227,3 +228,4 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 });
+

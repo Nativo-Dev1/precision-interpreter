@@ -1,11 +1,11 @@
 // src/screens/ConfirmEmailScreen.js
-import React, { useEffect, useState, useContext } from 'react';
-import { View, Text, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+
+import React, { useEffect, useState } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import ScreenWrapper from '../components/ScreenWrapper';
 import Header from '../components/Header';
 import PrimaryButton from '../components/PrimaryButton';
 import Constants from 'expo-constants';
-import * as Linking from 'expo-linking';
 
 export default function ConfirmEmailScreen({ route, navigation }) {
   const { token, email } = route.params || {};
@@ -25,33 +25,30 @@ export default function ConfirmEmailScreen({ route, navigation }) {
         );
         const json = await resp.json();
         if (json.success) {
-          setMessage('Email confirmed! You can now log in.');
+          setMessage('✅ Email confirmed! You can now log in.');
+          setTimeout(() => navigation.replace('Login'), 2000);
         } else {
-          setMessage(json.error || 'Confirmation failed.');
+          setMessage(json.error || '❌ Confirmation failed.');
         }
       } catch (err) {
         console.error('[ConfirmEmail ERROR]', err);
-        setMessage('Network error. Try again later.');
+        setMessage('❌ Network error. Try again later.');
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [token, email]);
 
   return (
     <ScreenWrapper>
       <Header title="Email Confirmation" />
-
       <View style={styles.container}>
         {loading ? (
           <ActivityIndicator size="large" color="#007AFF" />
         ) : (
           <>
             <Text style={styles.text}>{message}</Text>
-            <PrimaryButton
-              label="Go to Login"
-              onPress={() => navigation.replace('Login')}
-            />
+            <PrimaryButton label="Go to Login" onPress={() => navigation.replace('Login')} />
           </>
         )}
       </View>

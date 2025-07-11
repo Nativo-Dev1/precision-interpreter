@@ -11,11 +11,11 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode as b64decode } from 'base-64';
-import { Ionicons } from '@expo/vector-icons';    // ← named import
+import { Ionicons } from '@expo/vector-icons';
 
-import ScreenWrapper  from '../components/ScreenWrapper';       // ← fixed path
-import Header         from '../components/Header';              // ← fixed path
-import { AuthContext } from '../contexts/AuthContext';          // ← fixed path
+import ScreenWrapper from '../components/ScreenWrapper';
+import Header from '../components/Header';
+import { AuthContext } from '../contexts/AuthContext';
 
 export default function AboutScreen() {
   const { setUserToken } = useContext(AuthContext);
@@ -29,13 +29,17 @@ export default function AboutScreen() {
           let decodedEmail = '';
           try {
             const [, payloadSeg] = token.split('.');
-            const decodedString  = b64decode(payloadSeg);
-            const payloadObj     = JSON.parse(decodedString);
-            decodedEmail         = payloadObj.email || '';
-          } catch {}
+            const decodedString = b64decode(payloadSeg);
+            const payloadObj = JSON.parse(decodedString);
+            decodedEmail = payloadObj.email || '';
+          } catch {
+            decodedEmail = '';
+          }
           setEmail(decodedEmail);
         }
-      } catch {}
+      } catch {
+        // ignore
+      }
     })();
   }, []);
 
@@ -55,20 +59,24 @@ export default function AboutScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         {email ? (
-          <View style={styles.authRow}>
-            <View>
-              <Text style={styles.authLabel}>Logged in as:</Text>
-              <Text style={styles.authEmail}>{email}</Text>
-            </View>
+          <View style={styles.authContainer}>
+            {/* raised Log Out pill */}
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color="white" />
               <Text style={styles.logoutText}>Log Out</Text>
             </TouchableOpacity>
+
+            {/* email info below */}
+            <View style={styles.authInfo}>
+              <Text style={styles.authLabel}>Logged in as:</Text>
+              <Text style={styles.authEmail}>{email}</Text>
+            </View>
           </View>
         ) : null}
 
         <Text style={styles.title}>Nativo Interpreter</Text>
-        <Text style={styles.version}>Version 1.0.54</Text>
+        <Text style={styles.version}>Version 1.0.76</Text>
+
         <Text style={styles.text}>
           Nativo is a real-time bilingual voice and visual interpreter designed for clarity, speed, and cross-cultural communication.
         </Text>
@@ -92,14 +100,14 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#fff',
   },
-  authRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  authContainer: {
     marginBottom: 20,
+  },
+  authInfo: {
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    marginTop: 8,
   },
   authLabel: {
     fontSize: 14,
@@ -110,6 +118,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   logoutButton: {
+    alignSelf: 'flex-start',      // keep pill only as wide as its content
     flexDirection: 'row',
     backgroundColor: '#ef4444',
     paddingHorizontal: 12,

@@ -14,18 +14,19 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ← import this
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 
 import ScreenWrapper from '../components/ScreenWrapper';
-import Header        from '../components/Header';
+import Header from '../components/Header';
 
-const HISTORY_KEY    = 'nativoHistory';
-const FOOTER_HEIGHT  = 50;  // adjust if you want a taller button row
+const HISTORY_KEY = 'nativoHistory';
+const FOOTER_HEIGHT = 60; // Comfortable touch target
+const NAV_BAR_HEIGHT = Platform.OS === 'android' ? 48 : 0;
 
 export default function HistoryScreen() {
-  const insets    = useSafeAreaInsets();
+  const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,21 +48,17 @@ export default function HistoryScreen() {
   }, [isFocused, loadHistory]);
 
   const clearHistory = () => {
-    Alert.alert(
-      'Clear History?',
-      'This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorage.removeItem(HISTORY_KEY);
-            setHistory([]);
-          },
+    Alert.alert('Clear History?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          await AsyncStorage.removeItem(HISTORY_KEY);
+          setHistory([]);
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const copyToClipboard = async (orig, trans) => {
@@ -79,6 +76,9 @@ export default function HistoryScreen() {
     }
   };
 
+  const bottomOffset = insets.bottom + NAV_BAR_HEIGHT + 10;
+  const scrollPaddingBottom = FOOTER_HEIGHT + insets.bottom + NAV_BAR_HEIGHT + 20;
+
   return (
     <ScreenWrapper>
       <Header title="History" />
@@ -87,7 +87,7 @@ export default function HistoryScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: FOOTER_HEIGHT + insets.bottom + 20 },
+            { paddingBottom: scrollPaddingBottom },
           ]}
         >
           <Text style={styles.title}>📜 Translation History</Text>
@@ -101,7 +101,7 @@ export default function HistoryScreen() {
           ) : history.length === 0 ? (
             <Text style={styles.empty}>No saved translations yet.</Text>
           ) : (
-            history.map(item => {
+            history.map((item) => {
               const time = new Date(item.timestamp).toLocaleString();
               const isPhoto = item.type === 'photo';
               return (
@@ -137,14 +137,11 @@ export default function HistoryScreen() {
           )}
         </ScrollView>
 
-        {/* Absolute-position footer above nav bar */}
+        {/* Fixed footer button */}
         <View
           style={[
             styles.footer,
-            {
-              bottom: insets.bottom + 10, 
-              height: FOOTER_HEIGHT,
-            },
+            { bottom: bottomOffset, height: FOOTER_HEIGHT },
           ]}
         >
           <TouchableOpacity style={styles.clearButton} onPress={clearHistory}>
@@ -160,7 +157,7 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    position: 'relative', // so footer absolute is relative to this
+    position: 'relative',
   },
   scrollContent: {
     padding: 16,
@@ -198,7 +195,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
     fontWeight: '600',
-    color: '#0ea5e9',
+    color: '#3b82f6',
   },
   cardTime: {
     fontSize: 12,
@@ -217,7 +214,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',  // <— make it flush with your ScreenWrapper bg
     alignItems: 'center',
     justifyContent: 'center',
   },

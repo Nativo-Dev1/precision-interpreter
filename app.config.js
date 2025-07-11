@@ -1,7 +1,7 @@
 // app.config.js
 
 // load .env into process.env at config time
-import 'dotenv/config';
+require('dotenv/config');
 
 export default ({ config }) => {
   const { expo = {} }   = config;
