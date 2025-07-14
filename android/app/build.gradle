@@ -7,26 +7,22 @@ project.ext.react = [
 // -------------------------------------------------------------
 
 android {
+    namespace "com.lornedev.nativo"
     compileSdkVersion 35
 
     defaultConfig {
         applicationId "com.lornedev.nativo"
         minSdkVersion 24
         targetSdkVersion 35
-        versionCode 1
-        versionName "1.0"
+        versionCode 81
+        versionName "1.0.81"
+
+        // keep your abiFilters here if you still want a single universal AAB
         ndk {
             abiFilters "armeabi-v7a", "x86", "arm64-v8a", "x86_64"
         }
     }
-    splits {
-        abi {
-            reset()
-            enable true
-            universalApk false
-            include "armeabi-v7a", "x86", "arm64-v8a", "x86_64"
-        }
-    }
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -35,6 +31,7 @@ android {
             keyPassword 'android'
         }
     }
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
@@ -45,13 +42,14 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+
+    // versionCode per-ABI override (optional; can remove if you don't need per-ABI APKs)
     applicationVariants.all { variant ->
         variant.outputs.each { output ->
             def versionCodes = ["armeabi-v7a":1, "x86":2, "arm64-v8a":3, "x86_64":4]
             def abi = output.getFilter(com.android.build.OutputFile.ABI)
             if (abi != null) {
-                output.versionCodeOverride =
-                        versionCodes.get(abi) * 1000 + defaultConfig.versionCode
+                output.versionCodeOverride = versionCodes.get(abi) * 1000 + defaultConfig.versionCode
             }
         }
     }

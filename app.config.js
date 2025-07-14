@@ -12,12 +12,12 @@ export default ({ config }) => {
       name:    "Nativo Interpreter",
       slug:    "frontend",
       scheme:  "nativo",
-      version: "1.0.55",
+      version: "1.0.81",
       plugins: ["expo-dev-client"],
       android: {
         ...android,
         package:           android.package    || "com.lornedev.nativo",
-        versionCode:       (android.versionCode || 53) + 1,
+        versionCode:       (android.versionCode || 80) + 1,
         edgeToEdgeEnabled: android.edgeToEdgeEnabled ?? true,
         adaptiveIcon:      android.adaptiveIcon || {
           foregroundImage: "./assets/adaptive-icon.png",
