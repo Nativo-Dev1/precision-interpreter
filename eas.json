@@ -5,10 +5,12 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "projectRoot": "frontend"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "projectRoot": "frontend"
     },
     "production": {
       "android": {
@@ -19,7 +21,8 @@
       },
       "env": {
         "BACKEND_URL": "https://nativo-backend.onrender.com"
-      }
+      },
+      "projectRoot": "frontend"
     }
   }
 }
