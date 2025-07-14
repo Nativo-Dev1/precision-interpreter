@@ -7,10 +7,14 @@ import {
   Text,
   Button,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import Constants from 'expo-constants';
 import * as Sentry from '@sentry/react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -36,7 +40,7 @@ const RootStack = createStackNavigator();
 const Tab       = createBottomTabNavigator();
 
 export default function App() {
-  const [isReady,   setIsReady]   = useState(false);
+  const [isReady, setIsReady]   = useState(false);
   const [userToken, setUserToken] = useState(null);
 
   useEffect(() => {
@@ -90,9 +94,9 @@ export default function App() {
         <QuotaProvider>
           <AuthContext.Provider value={{ userToken, setUserToken }}>
             <NavigationContainer linking={linking} fallback={<ActivityIndicator />}>
-              <RootStack.Navigator screenOptions={{ headerShown:false }}>
+              <RootStack.Navigator screenOptions={{ headerShown: false }}>
                 {userToken == null ? (
-                  <RootStack.Screen name="Auth" component={AuthFlow} />
+                  <RootStack.Screen name="Auth"  component={AuthFlow} />
                 ) : (
                   <RootStack.Screen name="Main" component={AppTabs} />
                 )}
@@ -107,7 +111,10 @@ export default function App() {
 
 function AuthFlow() {
   return (
-    <AuthStack.Navigator initialRouteName="Login" screenOptions={{ headerShown:false }}>
+    <AuthStack.Navigator
+      initialRouteName="Login"
+      screenOptions={{ headerShown: false }}
+    >
       <AuthStack.Screen name="Login"          component={LoginScreen} />
       <AuthStack.Screen name="Register"       component={RegisterScreen} />
       <AuthStack.Screen name="ConfirmEmail"   component={ConfirmEmailScreen} />
@@ -118,6 +125,8 @@ function AuthFlow() {
 }
 
 function AppTabs() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -125,11 +134,15 @@ function AppTabs() {
         tabBarActiveTintColor:   '#007AFF',
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
           backgroundColor: '#fff',
           borderTopWidth: 0,
           elevation: 2,
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: 8,
         },
         tabBarIcon: ({ color, size }) => {
@@ -155,15 +168,23 @@ function AppTabs() {
 
 const styles = StyleSheet.create({
   center: {
-    flex:1, justifyContent:'center', alignItems:'center'
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   errorContainer: {
-    flex:1, justifyContent:'center', alignItems:'center', padding:20
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   errorTitle: {
-    fontSize:18, marginBottom:12
+    fontSize: 18,
+    marginBottom: 12,
   },
   errorMessage: {
-    color:'#666', marginBottom:20, textAlign:'center'
-  }
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
 });

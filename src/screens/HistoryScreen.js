@@ -13,39 +13,27 @@ import {
   Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from '@react-navigation/native';
-
 import Header from '../components/Header';
 import ScreenWrapper from '../components/ScreenWrapper';
-
-const HISTORY_KEY = 'nativoHistory';
+import { getHistory, clearHistory } from '../utils/historyStorage';
 
 export default function HistoryScreen() {
-  const isFocused = useIsFocused();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
-    try {
-      const raw = await AsyncStorage.getItem(HISTORY_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      setHistory(parsed);
-    } catch (err) {
-      console.error('❌ Error loading history:', err);
-    } finally {
-      setLoading(false);
-    }
+    const h = await getHistory();
+    setHistory(h);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (isFocused) loadHistory();
-  }, [isFocused, loadHistory]);
+    loadHistory();
+  }, []);
 
-  const clearHistory = () => {
+  const confirmClear = () => {
     Alert.alert(
       'Clear History?',
       'This cannot be undone.',
@@ -55,7 +43,7 @@ export default function HistoryScreen() {
           text: 'Clear',
           style: 'destructive',
           onPress: async () => {
-            await AsyncStorage.removeItem(HISTORY_KEY);
+            await clearHistory();
             setHistory([]);
           },
         },
@@ -63,84 +51,52 @@ export default function HistoryScreen() {
     );
   };
 
-  // Copies both original and translated text
   const copyBubble = async (orig, trans) => {
-    const textToCopy = `${orig}\n\n${trans}`;
-    try {
-      await Clipboard.setStringAsync(textToCopy);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Copied translation!', ToastAndroid.SHORT);
-      } else {
-        Alert.alert('Copied translation!');
-      }
-    } catch (e) {
-      console.error('❌ Clipboard error:', e);
-      Alert.alert('Error copying to clipboard');
+    const text = `${orig}\n\n${trans}`;
+    await Clipboard.setStringAsync(text);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show('Copied translation!', ToastAndroid.SHORT);
+    } else {
+      Alert.alert('Copied translation!');
     }
   };
 
   return (
     <ScreenWrapper>
       <Header title="History" />
-
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={styles.scrollContainer}
-      >
+      <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>📜 Translation History</Text>
-
         {loading ? (
-          <ActivityIndicator
-            size="large"
-            color="#0ea5e9"
-            style={styles.loader}
-          />
+          <ActivityIndicator size="large" color="#0ea5e9" style={styles.loader} />
         ) : history.length === 0 ? (
-          <Text style={styles.empty}>No saved conversations yet.</Text>
+          <Text style={styles.empty}>No saved translations yet.</Text>
         ) : (
-          history.map(item => {
-            const time = new Date(item.timestamp).toLocaleString();
-            const isPhoto = item.type === 'photo';
-            return (
-              <TouchableOpacity
-                key={item.timestamp}
-                activeOpacity={0.8}
-                onLongPress={() =>
-                  copyBubble(item.original, item.translated)
-                }
-              >
-                <View style={styles.card}>
-                  <View style={styles.cardHeader}>
-                    <Ionicons
-                      name={isPhoto ? 'camera-outline' : 'mic-outline'}
-                      size={20}
-                      color="#0ea5e9"
-                    />
-                    <Text style={styles.cardTitle}>
-                      {item.from} → {item.to}
-                    </Text>
-                    <Text style={styles.cardTime}>{time}</Text>
-                  </View>
-                  <Text style={styles.label}>Original:</Text>
-                  <Text style={styles.text}>{item.original}</Text>
-                  <Text style={[styles.label, { marginTop: 8 }]}>
-                    Translated:
+          history.map(item => (
+            <TouchableOpacity
+              key={item.timestamp.toString()}
+              activeOpacity={0.8}
+              onLongPress={() => copyBubble(item.original, item.translated)}
+            >
+              <View style={styles.card}>
+                <View style={styles.header}>
+                  <Text style={styles.langs}>{item.from} → {item.to}</Text>
+                  <Text style={styles.time}>
+                    {new Date(item.timestamp).toLocaleString()}
                   </Text>
-                  <Text style={styles.text}>{item.translated}</Text>
                 </View>
-              </TouchableOpacity>
-            );
-          })
+                <Text style={styles.label}>Original:</Text>
+                <Text style={styles.text}>{item.original}</Text>
+                <Text style={[styles.label, { marginTop: 8 }]}>Translated:</Text>
+                <Text style={styles.text}>{item.translated}</Text>
+              </View>
+            </TouchableOpacity>
+          ))
         )}
       </ScrollView>
-
-      <SafeAreaView edges={['bottom']} style={{ backgroundColor: 'transparent' }}>
-        <View style={styles.footerRow}>
-          <TouchableOpacity style={styles.clearButton} onPress={clearHistory}>
-            <Ionicons name="trash-outline" size={18} color="white" />
-            <Text style={styles.clearButtonText}>Clear History</Text>
-          </TouchableOpacity>
-        </View>
+      <SafeAreaView edges={['bottom']} style={styles.footer}>
+        <TouchableOpacity style={styles.clearBtn} onPress={confirmClear}>
+          <Text style={styles.clearTxt}>Clear History</Text>
+        </TouchableOpacity>
       </SafeAreaView>
     </ScreenWrapper>
   );

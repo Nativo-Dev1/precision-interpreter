@@ -29,9 +29,9 @@ export default function AboutScreen() {
           let decodedEmail = '';
           try {
             const [, payloadSeg] = token.split('.');
-            const decodedString  = b64decode(payloadSeg);
-            const payloadObj     = JSON.parse(decodedString);
-            decodedEmail         = payloadObj.email || '';
+            const decodedString = b64decode(payloadSeg);
+            const payloadObj = JSON.parse(decodedString);
+            decodedEmail = payloadObj.email || '';
           } catch {}
           setEmail(decodedEmail);
         }
@@ -56,14 +56,8 @@ export default function AboutScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {email ? (
           <View style={styles.authRow}>
-            <View>
-              <Text style={styles.authLabel}>Logged in as:</Text>
-              <Text style={styles.authEmail}>{email}</Text>
-            </View>
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={20} color="white" />
-              <Text style={styles.logoutText}>Log Out</Text>
-            </TouchableOpacity>
+            <Text style={styles.authLabel}>Logged in as:</Text>
+            <Text style={styles.authEmail}>{email}</Text>
           </View>
         ) : null}
 
@@ -80,6 +74,13 @@ export default function AboutScreen() {
         </Text>
         <Text style={styles.textMuted}>© 2025 Nativo Labs. All rights reserved.</Text>
 
+        {email ? (
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="white" />
+            <Text style={styles.logoutText}>Log Out</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </ScreenWrapper>
@@ -93,13 +94,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   authRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingVertical: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    paddingBottom: 8,
+    marginBottom: 20,
   },
   authLabel: {
     fontSize: 14,
@@ -110,19 +110,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
     marginTop: 2,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    backgroundColor: '#EF4444',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  logoutText: {
-    color: 'white',
-    fontWeight: '600',
-    marginLeft: 6,
   },
   title: {
     fontSize: 22,
@@ -146,5 +133,19 @@ const styles = StyleSheet.create({
     marginTop: 30,
     textAlign: 'center',
   },
+  logoutButton: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    backgroundColor: '#EF4444',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  logoutText: {
+    color: 'white',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
 });
-

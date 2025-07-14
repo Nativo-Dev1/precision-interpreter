@@ -1,79 +1,69 @@
 // src/contexts/QuotaContext.js
-
-import React, {
-  createContext,
-  useState,
-  useEffect,
-  useContext,
-} from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { fetchQuota } from '../services/api';
 
-const QuotaContext = createContext({
-  plan: 'Free',
-  expiresAt: null,
-  interpretationsLeft: 0,
+export const QuotaContext = createContext({
+  remainingCredits: 0,
+  accumulatedSeconds: 0,
+  secsPerCredit: 10,
+  secondsLeft: 0,
   remainingScans: 0,
   loading: true,
+  refreshQuota: async () => {},
 });
 
-export function useQuota() {
-  return useContext(QuotaContext);
-}
-
 export function QuotaProvider({ children }) {
-  const [quota, setQuota] = useState({
-    plan: 'Free',
-    expiresAt: null,
-    interpretationsLeft: 0,
-    remainingScans: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const [remainingCredits, setRemainingCredits]         = useState(0);
+  const [accumulatedSeconds, setAccumulatedSeconds]     = useState(0);
+  const [secsPerCredit, setSecsPerCredit]               = useState(10);
+  const [secondsLeft, setSecondsLeft]                   = useState(0);
+  const [remainingScans, setRemainingScans]             = useState(0);
+  const [loading, setLoading]                           = useState(true);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadQuota = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchQuota(); 
+      // data: { creditsLeft, secondsAccumulated, secsPerCredit, scansLeft }
+      const credits   = data.creditsLeft ?? 0;
+      const accuSec   = data.secondsAccumulated ?? 0;
+      const perCredit = data.secsPerCredit ?? 10;
+      const scans     = data.scansLeft ?? 0;
 
-    async function loadQuota() {
-      try {
-        // Only fetch if a token is stored
-        const token = await AsyncStorage.getItem('userToken');
-        if (!token) {
-          // Not logged in yet → skip fetch
-          if (mounted) setLoading(false);
-          return;
-        }
-
-        console.log('📊 [QuotaContext] fetching quota');
-        const data = await fetchQuota(); 
-        // Expected shape: { plan, expiresAt, interpretationsLeft, remainingScans }
-        if (mounted) {
-          setQuota({
-            plan:                data.plan,
-            expiresAt:           data.expiresAt,
-            interpretationsLeft: data.interpretationsLeft,
-            remainingScans:      data.remainingScans,
-          });
-        }
-      } catch (err) {
-        // If it’s a 401/no-token error, ignore silently
-        const msg = err.message || '';
-        if (!msg.includes('No token provided')) {
-          console.warn('[QuotaContext] unexpected error:', err);
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      setRemainingCredits(credits);
+      setAccumulatedSeconds(accuSec);
+      setSecsPerCredit(perCredit);
+      setSecondsLeft(credits * perCredit - accuSec);
+      setRemainingScans(scans);
+    } catch (err) {
+      console.warn('[QuotaContext] loadQuota failed:', err);
+    } finally {
+      setLoading(false);
     }
-
-    loadQuota();
-
-    return () => {
-      mounted = false;
-    };
   }, []);
 
+  // Initial fetch on mount
+  useEffect(() => {
+    loadQuota();
+  }, [loadQuota]);
+
+  // Expose the same loader as a manual “refresh”
+  const refreshQuota = useCallback(async () => {
+    await loadQuota();
+  }, [loadQuota]);
+
   return (
-    <QuotaContext.Provider value={{ ...quota, loading }}>
+    <QuotaContext.Provider
+      value={{
+        remainingCredits,
+        accumulatedSeconds,
+        secsPerCredit,
+        secondsLeft,
+        remainingScans,
+        loading,
+        refreshQuota,
+      }}
+    >
       {children}
     </QuotaContext.Provider>
   );

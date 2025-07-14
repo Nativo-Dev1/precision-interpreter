@@ -4,15 +4,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-/**  
- * Base URL for all API calls, read from Expo config or fallback  
+/**
+ * Base URL for all API calls, read from Expo config or fallback
  */
 const BACKEND_URL =
   Constants.expoConfig?.extra?.BACKEND_URL ||
   'https://nativo-backend.onrender.com';
 
-/**  
- * Infer MIME type from a file extension  
+/**
+ * Infer MIME type from a file extension
  */
 function getMimeType(filename) {
   const ext = filename.split('.').pop().toLowerCase();
@@ -26,16 +26,15 @@ function getMimeType(filename) {
   }
 }
 
-/**  
+/**
  * Core fetch wrapper: injects Bearer token, logs calls, checks HTTP status,
- * and returns parsed JSON (or throws on error).  
+ * and returns parsed JSON (or throws on error).
  */
 async function authFetch(path, opts = {}) {
   const url = path.startsWith('http') ? path : `${BACKEND_URL}${path}`;
   const token = await AsyncStorage.getItem('userToken');
   const headers = {
     Accept: 'application/json',
-    // multipart/form-data bodies set their own boundary, so skip JSON header
     ...(opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     Authorization: token ? `Bearer ${token}` : '',
     ...opts.headers,
@@ -52,15 +51,12 @@ async function authFetch(path, opts = {}) {
   }
 
   const contentType = resp.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    return resp.json();
-  } else {
-    return resp.text();
-  }
+  return contentType.includes('application/json')
+    ? resp.json()
+    : resp.text();
 }
 
 /** Auth & user flows **/
-
 export function register(email, password) {
   return authFetch('/register', {
     method: 'POST',
@@ -75,38 +71,42 @@ export function login(email, password) {
   });
 }
 
-export function confirmEmail(token, email) {
-  const q = `?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
-  return authFetch(`/confirm-email${q}`);
-}
-
-export function forgotPassword(email) {
-  return authFetch('/forgot-password', {
-    method: 'POST',
-    body: JSON.stringify({ email }),
-  });
-}
-
-export function resetPassword(email, token, newPassword) {
-  return authFetch('/reset-password', {
-    method: 'POST',
-    body: JSON.stringify({ email, token, newPassword }),
-  });
-}
-
 /** Core translation & OCR **/
-
-export function uploadText(text, sourceLanguage, targetLanguage, speakerGender, listenerGender, formality) {
+export function uploadText(
+  text,
+  sourceLanguage,
+  targetLanguage,
+  speakerGender,
+  listenerGender,
+  formality,
+  durationSec = 0
+) {
   return authFetch('/translate-text', {
     method: 'POST',
-    body: JSON.stringify({ text, sourceLanguage, targetLanguage, speakerGender, listenerGender, formality }),
+    body: JSON.stringify({
+      text,
+      sourceLanguage,
+      targetLanguage,
+      speakerGender,
+      listenerGender,
+      formality,
+      durationSec,
+    }),
   });
 }
 
-export async function uploadAudio({ uri, sourceLanguage, targetLanguage, speakerGender, listenerGender, formality }) {
+export async function uploadAudio({
+  uri,
+  sourceLanguage,
+  targetLanguage,
+  speakerGender,
+  listenerGender,
+  formality,
+  durationSec = 0,
+}) {
   const name = uri.split('/').pop();
   const form = new FormData();
-  form.append('audio', {
+  form.append('file', {
     uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
     name,
     type: getMimeType(name),
@@ -116,6 +116,7 @@ export async function uploadAudio({ uri, sourceLanguage, targetLanguage, speaker
   form.append('speakerGender', speakerGender);
   form.append('listenerGender', listenerGender);
   form.append('formality', formality);
+  form.append('durationSec', String(durationSec));
 
   return authFetch('/upload', {
     method: 'POST',
@@ -140,19 +141,18 @@ export async function uploadImageForOcr(uri, sourceLanguage, targetLanguage) {
   });
 }
 
-/** Quota, history & purchases **/
-
+/** Quota & purchases **/
 export function fetchQuota() {
   return authFetch('/user/quota');
 }
 
-export function fetchHistory() {
-  return authFetch('/history');
-}
-
-export function purchaseAddon(productId) {
-  return authFetch('/purchase/addon', {
+/**
+ * Purchase a credits/seconds pack.
+ * @param {string} plan  One of your server’s plan keys: 'Starter', 'Casual', etc.
+ */
+export function buyPack(plan) {
+  return authFetch('/buy-pack', {
     method: 'POST',
-    body: JSON.stringify({ productId }),
+    body: JSON.stringify({ plan }),
   });
 }

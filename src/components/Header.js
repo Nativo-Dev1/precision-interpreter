@@ -1,6 +1,11 @@
 // src/components/Header.js
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
 
 const coloredLetters = [
   { letter: 'N', color: '#2563eb' },
@@ -11,17 +16,29 @@ const coloredLetters = [
   { letter: 'o', color: '#8b5cf6' },
 ];
 
-export default function Header() {
+export default function Header({
+  leftIcon,
+  onLeftIconPress,
+  subtitle = 'Real-time Language interpreter',
+}) {
   return (
     <View style={styles.container}>
+      {leftIcon && (
+        <TouchableOpacity
+          onPress={onLeftIconPress}
+          style={styles.leftIconWrapper}
+        >
+          {leftIcon}
+        </TouchableOpacity>
+      )}
       <Text style={styles.title}>
         {coloredLetters.map(({ letter, color }, i) => (
-          <Text key={i} style={{ color }}>{letter}</Text>
+          <Text key={i} style={{ color }}>
+            {letter}
+          </Text>
         ))}
       </Text>
-      <Text style={styles.subtitle}>
-        Real-time Language interpreter
-      </Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
     </View>
   );
 }
@@ -31,7 +48,15 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     paddingBottom: 16,
     alignItems: 'center',
-    backgroundColor: 'transparent',  // let the gradient show through
+    justifyContent: 'center',
+    backgroundColor: 'transparent', // if you have a gradient behind
+    position: 'relative',
+  },
+  leftIconWrapper: {
+    position: 'absolute',
+    top: 40,        // same as paddingTop
+    left: 12,       // your desired left margin
+    zIndex: 10,
   },
   title: {
     fontSize: 28,

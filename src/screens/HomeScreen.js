@@ -1,5 +1,4 @@
 // src/screens/HomeScreen.js
-// Scroll and lock, press to record.
 
 import React, {
   useEffect,
@@ -11,7 +10,6 @@ import React, {
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   Alert,
   ScrollView,
@@ -21,6 +19,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   TextInput,
+  StyleSheet,
   Platform,
   PermissionsAndroid,
 } from 'react-native';
@@ -37,12 +36,11 @@ import Header from '../components/Header';
 import LanguageColumn from '../components/LanguageColumn';
 import languages from '../constants/languages';
 import { SETTINGS_KEY, LANGPAIR_KEY } from '../constants/storageKeys';
-import { uploadAudio, uploadText } from '../services/api';
+import { HISTORY_KEY, addHistoryEntry } from '../utils/historyStorage';
+import { uploadAudio, uploadText, buyPack } from '../services/api';
 import { QuotaContext } from '../contexts/QuotaContext';
 
-// Shrink the visible flag window to 100×100
 const ITEM_HEIGHT = 100;
-const HISTORY_KEY = 'nativoHistory';
 
 export default function HomeScreen() {
   // State & refs
@@ -51,8 +49,8 @@ export default function HomeScreen() {
   const [locked, setLocked] = useState(false);
   const [count1, setCount1] = useState(null);
   const [count2, setCount2] = useState(null);
-  const [loading, setLoading] = useState(false);    // tracks network requests
-  const [inFlight, setInFlight] = useState(false);  // tracks audio/text request in progress
+  const [loading, setLoading] = useState(false);
+  const [inFlight, setInFlight] = useState(false);
   const [translation, setTranslation] = useState(null);
   const [leftChatModal, setLeftChatModal] = useState(false);
   const [rightChatModal, setRightChatModal] = useState(false);
@@ -60,37 +58,6 @@ export default function HomeScreen() {
   const [rightChatInput, setRightChatInput] = useState('');
   const [storeVisible, setStoreVisible] = useState(false);
 
-  // Prevent rapid re-taps
-  const recordLock = useRef({ left: false, right: false });
-  const lastAction = useRef(0);
-  const stopped1 = useRef(false);
-  const stopped2 = useRef(false);
-  const timer = useRef(null);
-  const isFocused = useIsFocused();
-
-  // Stub IAP products until real setup
-  const products = [
-    {
-      productId: 'bundle_starter_30min10scan',
-      title: 'Starter Pack',
-      description: '30 min voice + 10 scans',
-      priceString: '$2.99',
-    },
-    {
-      productId: 'bundle_regular_60min25scan',
-      title: 'Regular Pack',
-      description: '60 min voice + 25 scans',
-      priceString: '$4.99',
-    },
-    {
-      productId: 'bundle_pro_120min50scan',
-      title: 'Pro Pack',
-      description: '120 min voice + 50 scans',
-      priceString: '$8.99',
-    },
-  ];
-
-  // Settings
   const [settings, setSettings] = useState({
     speaker1Gender: 'neutral',
     speaker2Gender: 'neutral',
@@ -99,29 +66,44 @@ export default function HomeScreen() {
     recordDuration: 5,
   });
 
-  // Quota context
-  const { quota: rawQuota, loading: quotaLoading, refreshQuota } =
-    useContext(QuotaContext);
-  const quota = rawQuota || {};
-  const effectiveQuota = __DEV__
-    ? {
-        remainingSeconds: Number.MAX_SAFE_INTEGER,
-        interpretationsLeft: Number.MAX_SAFE_INTEGER,
-      }
-    : quota;
+  const recordStart = useRef(0);
+  const recordLock = useRef({ left: false, right: false });
+  const lastAction = useRef(0);
+  const stopped1 = useRef(false);
+  const stopped2 = useRef(false);
+  const timer = useRef(null);
+  const isFocused = useIsFocused();
 
-  // Load settings
+  // In-app purchase bundles
+  const products = [
+    { productId: 'bundle_starter_40cred400s_3scan', plan: 'Starter',  title: 'Starter',  description: '40 credits + 400s & 3 scans',  priceString: '$1.99' },
+    { productId: 'bundle_casual_90cred900s_5scan',   plan: 'Casual',   title: 'Casual',   description: '90 credits + 900s & 5 scans',   priceString: '$3.99' },
+    { productId: 'bundle_standard_180cred1800s_10scan', plan: 'Standard', title: 'Standard', description: '180 credits + 1800s & 10 scans', priceString: '$6.99' },
+    { productId: 'bundle_pro_360cred3600s_25scan',    plan: 'Pro',      title: 'Pro',      description: '360 credits + 3600s & 25 scans',  priceString: '$12.99' },
+  ];
+
+  // Quota context
+  const {
+    remainingCredits,
+    secondsLeft,
+    remainingScans,
+    loading: quotaLoading,
+    refreshQuota,
+  } = useContext(QuotaContext);
+
+  const outOfQuota = !__DEV__ && remainingCredits <= 0 && secondsLeft <= 0;
+
+  // Load user settings
   const loadSettings = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(SETTINGS_KEY);
-      if (raw) setSettings((prev) => ({ ...prev, ...JSON.parse(raw) }));
+      if (raw) setSettings(prev => ({ ...prev, ...JSON.parse(raw) }));
     } catch (e) {
       console.warn('Failed to load settings', e);
       Sentry.captureException(e);
     }
   }, []);
 
-  // Initialize audio and permissions
   useEffect(() => {
     (async () => {
       if (Platform.OS === 'android') {
@@ -143,48 +125,42 @@ export default function HomeScreen() {
     return () => clearInterval(timer.current);
   }, [loadSettings]);
 
-  // Reload settings on focus
   useEffect(() => {
     if (isFocused) loadSettings();
   }, [isFocused, loadSettings]);
 
-  // Play a local sound asset
-  const playSound = async (soundFile) => {
+  // Play a short sound effect
+  const playSound = async soundFile => {
     const { sound } = await Audio.Sound.createAsync(soundFile, {
       shouldPlay: true,
     });
-    sound.setOnPlaybackStatusUpdate((status) =>
-      status.didJustFinish && sound.unloadAsync()
+    sound.setOnPlaybackStatusUpdate(s =>
+      s.didJustFinish && sound.unloadAsync()
     );
   };
 
-  // Start voice recording
-  const startRecording = async (side) => {
+  // Start voice recording with countdown
+  const startRecording = async side => {
+    if (outOfQuota) {
+      Alert.alert('Out of credits/seconds', 'Tap the cart icon to top up.');
+      return;
+    }
     const now = Date.now();
     if (now - lastAction.current < 500) return;
     lastAction.current = now;
     if (recordLock.current[side] || inFlight || loading) return;
     recordLock.current[side] = true;
-
-    const current = side === 'left' ? count1 : count2;
-    if (current != null) {
-      recordLock.current[side] = false;
-      return;
-    }
-
     if (!locked) {
       Haptics.selectionAsync();
       recordLock.current[side] = false;
       return;
     }
-
     Haptics.selectionAsync();
     await playSound(require('../../assets/ding.mp3'));
-
+    recordStart.current = Date.now();
     let secs = settings.recordDuration;
     side === 'left' ? setCount1(secs) : setCount2(secs);
     AudioRecord.start();
-
     timer.current = setInterval(() => {
       secs -= 1;
       side === 'left' ? setCount1(secs) : setCount2(secs);
@@ -195,31 +171,29 @@ export default function HomeScreen() {
     }, 1000);
   };
 
-  // Stop recording and upload
-  const stopRecording = async (side) => {
+  // Stop recording, upload, play TTS, refresh quota, and save history
+  const stopRecording = async side => {
     const now = Date.now();
     if (now - lastAction.current < 500) return;
     lastAction.current = now;
     if (inFlight || loading) return;
     const setC = side === 'left' ? setCount1 : setCount2;
-    const stop = side === 'left' ? stopped1 : stopped2;
-    if (stop.current) return;
-    stop.current = true;
-
+    const stopRef = side === 'left' ? stopped1 : stopped2;
+    if (stopRef.current) return;
+    stopRef.current = true;
     clearInterval(timer.current);
     setC(null);
-
     setLoading(true);
     setInFlight(true);
+
     try {
       const rawPath = await AudioRecord.stop();
       if (!rawPath) throw new Error('No audio recorded.');
       await playSound(require('../../assets/stop.mp3'));
-
       const uri = rawPath.startsWith('file://') ? rawPath : `file://${rawPath}`;
       const src = side === 'left' ? lang1.code : lang2.code;
       const tgt = side === 'left' ? lang2.code : lang1.code;
-
+      const actualSec = Math.ceil((Date.now() - recordStart.current) / 1000);
       const result = await uploadAudio({
         uri,
         speakerGender:
@@ -229,213 +203,157 @@ export default function HomeScreen() {
         formality: settings.formality,
         sourceLanguage: src,
         targetLanguage: tgt,
+        durationSec: actualSec,
       });
-
-      // Check for quota-related errors
       if (!result.success) {
-        const msg = result.error || '';
-        if (msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('remaining')) {
-          Alert.alert(
-            'Out of minutes',
-            'You have no remaining voice minutes. Tap “Buy More” to top up.'
-          );
+        const errMsg = (result.error || '').toLowerCase();
+        if (errMsg.includes('quota') || errMsg.includes('remaining')) {
+          Alert.alert('Out of credits/seconds', 'Tap the cart icon to top up.');
         } else {
-          Alert.alert(
-            'Translation error',
-            'Unable to translate right now. Please try again later.'
-          );
+          Alert.alert('Translation error', 'Try again later.');
         }
-        throw new Error(msg);
+        throw new Error(result.error);
       }
 
       setTranslation(result);
-
-      // Auto-play TTS
       if (result.ttsAudioUrl && settings.autoplay) {
         const { sound } = await Audio.Sound.createAsync(
           { uri: result.ttsAudioUrl },
           { shouldPlay: true }
         );
-        sound.setOnPlaybackStatusUpdate((s) =>
-          s.didJustFinish && sound.unloadAsync()
-        );
+        sound.setOnPlaybackStatusUpdate(s => s.didJustFinish && sound.unloadAsync());
       }
 
       await refreshQuota();
 
-      // Save history
-      try {
-        const entry = {
-          original: result.original,
-          translated: result.translated,
-          timestamp: Date.now(),
-          from: side === 'left' ? lang1.label : lang2.label,
-          to: side === 'left' ? lang2.label : lang1.label,
-          type: 'voice',
-        };
-        const raw = await AsyncStorage.getItem(HISTORY_KEY);
-        const arr = raw ? JSON.parse(raw) : [];
-        arr.unshift(entry);
-        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
-      } catch (e) {
-        console.warn('Failed to save voice history', e);
-        Sentry.captureException(e);
-      }
+      await addHistoryEntry({
+        original:   result.original,
+        translated: result.translated,
+        timestamp:  Date.now(),
+        from:       side === 'left' ? lang1.label : lang2.label,
+        to:         side === 'left' ? lang2.label : lang1.label,
+        type:       'voice',
+        audioUrl:   result.ttsAudioUrl,
+      });
     } catch (err) {
       Sentry.captureException(err);
-      // If we already showed a quota alert above, no need to re-alert generic
-      if (!err.message.toLowerCase().includes('quota')) {
-        Alert.alert(
-          'Translation error',
-          err.message || 'Something went wrong. Please try again.'
-        );
-      }
     } finally {
       setLoading(false);
       setInFlight(false);
       recordLock.current[side] = false;
-      stop.current = false;
+      stopRef.current = false;
     }
   };
 
-  // Handle text-chat translation
-  const handleChat = async (side) => {
+  // Handle text-based translation
+  const handleChat = async side => {
+    if (outOfQuota) {
+      Alert.alert('Out of credits/seconds', 'Tap the cart icon to top up.');
+      return;
+    }
     const text = side === 'left' ? leftChatInput : rightChatInput;
     if (!text.trim()) {
       return Alert.alert('Enter text', 'Please type something to translate.');
     }
-
     if (!locked) {
       setLocked(true);
       Haptics.selectionAsync();
-      try {
-        await AsyncStorage.setItem(
-          LANGPAIR_KEY,
-          JSON.stringify({ source: lang1.code, target: lang2.code })
-        );
-      } catch (e) {
-        console.warn('Failed to save lang pair', e);
-        Sentry.captureException(e);
-      }
+      await AsyncStorage.setItem(
+        LANGPAIR_KEY,
+        JSON.stringify({ source: lang1.code, target: lang2.code })
+      );
     }
 
     setLoading(true);
     try {
       const src = side === 'left' ? lang1.code : lang2.code;
       const tgt = side === 'left' ? lang2.code : lang1.code;
+      const estSec = Math.ceil(text.length / 5);
       const result = await uploadText(
         text,
         src,
         tgt,
         settings.speaker1Gender,
         settings.speaker2Gender,
-        settings.formality
+        settings.formality,
+        estSec
       );
-
-      // Quota or other server-side errors
       if (!result.success) {
-        const msg = result.error || '';
-        if (msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('remaining')) {
-          Alert.alert(
-            'Out of minutes',
-            'You have no remaining voice minutes. Tap “Buy More” to top up.'
-          );
+        const errMsg = (result.error || '').toLowerCase();
+        if (errMsg.includes('quota') || errMsg.includes('remaining')) {
+          Alert.alert('Out of credits/seconds', 'Tap the cart icon to top up.');
         } else {
-          Alert.alert(
-            'Translation error',
-            'Something went wrong. Check your network and try again.'
-          );
+          Alert.alert('Translation error', 'Try again later.');
         }
-        throw new Error(msg);
+        throw new Error(result.error);
       }
 
       setTranslation(result);
-
       if (result.ttsAudioUrl && settings.autoplay) {
         const { sound } = await Audio.Sound.createAsync(
           { uri: result.ttsAudioUrl },
           { shouldPlay: true }
         );
-        sound.setOnPlaybackStatusUpdate((s) =>
-          s.didJustFinish && sound.unloadAsync()
-        );
+        sound.setOnPlaybackStatusUpdate(s => s.didJustFinish && sound.unloadAsync());
       }
 
       await refreshQuota();
 
-      // Save chat history
-      try {
-        const entry = {
-          original: result.original,
-          translated: result.translated,
-          timestamp: Date.now(),
-          from: side === 'left' ? lang1.label : lang2.label,
-          to: side === 'left' ? lang2.label : lang1.label,
-          type: 'text',
-        };
-        const raw = await AsyncStorage.getItem(HISTORY_KEY);
-        const arr = raw ? JSON.parse(raw) : [];
-        arr.unshift(entry);
-        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
-      } catch (e) {
-        console.warn('Failed to save text history', e);
-        Sentry.captureException(e);
-      }
+      await addHistoryEntry({
+        original:   result.original,
+        translated: result.translated,
+        timestamp:  Date.now(),
+        from:       side === 'left' ? lang1.label : lang2.label,
+        to:         side === 'left' ? lang2.label : lang1.label,
+        type:       'text',
+      });
     } catch (err) {
       Sentry.captureException(err);
-      // If quota alert was shown above, don’t double-alert
-      if (!err.message.toLowerCase().includes('quota')) {
-        Alert.alert(
-          'Translation error',
-          err.message || 'Something went wrong. Please try again.'
-        );
-      }
+      Alert.alert('Translation error', err.message || 'Try again later.');
     } finally {
       setLoading(false);
       side === 'left' ? setLeftChatInput('') : setRightChatInput('');
     }
   };
 
-  // Stub purchase until IAP
-  const buyAddOn = async (productId) => {
+  // Purchase flow
+  const buyAddOn = async plan => {
     if (loading) return;
     setLoading(true);
     try {
-      const resp = await uploadText('', productId, '', '', '', '');
-      if (!resp.success) {
-        throw new Error(resp.error || 'Purchase failed');
-      }
+      const { quotas } = await buyPack(plan);
       await refreshQuota();
       Alert.alert(
         'Purchase successful',
-        `You now have ${Math.floor(resp.remainingSeconds / 60)} min & ${resp.remainingScans} scans.`
+        `You now have ${quotas.credits} credits & ${quotas.scans} scans`
       );
+      setStoreVisible(false);
     } catch (err) {
       Sentry.captureException(err);
-      Alert.alert(
-        'Purchase failed',
-        err.message || 'Unable to complete purchase. Please try again later.'
-      );
+      Alert.alert('Purchase failed', err.message || 'Try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Render ---
   return (
     <ScreenWrapper>
-      <Header title="Voice Translate" />
+      <Header
+        title="Nativo"
+        leftIcon={
+          <Ionicons
+            name="cart-outline"
+            size={24}
+            color="#3b82f6"
+            style={{ marginLeft: 12 }}
+          />
+        }
+        onLeftIconPress={() => setStoreVisible(true)}
+      />
 
       <Text style={styles.quotaText}>
-        🎙️ {effectiveQuota.interpretationsLeft ?? 0} interpretations left
+        🎟️ {remainingCredits} credits | ⏱️ {secondsLeft}s
       </Text>
-      <TouchableOpacity
-        style={[styles.buyMoreBtn, loading && styles.disabledButton]}
-        onPress={() => setStoreVisible(true)}
-        disabled={loading}
-      >
-        <Text style={styles.buyMoreText}>Buy More Minutes & Scans</Text>
-      </TouchableOpacity>
 
       <View style={styles.lockHintWrapper}>
         {locked ? (
@@ -457,7 +375,6 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.languageRow}>
-        {/* Left picker + button in a column */}
         <View style={styles.pickerContainer}>
           <View style={styles.languageWrapper}>
             <LanguageColumn
@@ -467,23 +384,27 @@ export default function HomeScreen() {
               onStop={() => stopRecording('left')}
               countdown={count1}
               locked={locked}
+              disabled={outOfQuota}
               excludeCode={lang2.code}
             />
           </View>
           <TouchableOpacity
             style={[
               styles.textChatButton,
-              (loading || inFlight) && styles.disabledButton,
+              (loading || inFlight || outOfQuota || !locked) && styles.disabledButton,
             ]}
             onPress={() => setLeftChatModal(true)}
-            disabled={loading || inFlight}
+            disabled={loading || inFlight || outOfQuota || !locked}
           >
-            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3b82f6" />
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={20}
+              color="#3b82f6"
+            />
             <Text style={styles.textChatLabel}>Text</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Swap/Lock icon between columns */}
         <TouchableOpacity
           style={styles.swapIcon}
           disabled={loading || count1 != null || count2 != null}
@@ -512,7 +433,6 @@ export default function HomeScreen() {
           />
         </TouchableOpacity>
 
-        {/* Right picker + button in a column */}
         <View style={styles.pickerContainer}>
           <View style={styles.languageWrapper}>
             <LanguageColumn
@@ -522,18 +442,23 @@ export default function HomeScreen() {
               onStop={() => stopRecording('right')}
               countdown={count2}
               locked={locked}
+              disabled={outOfQuota}
               excludeCode={lang1.code}
             />
           </View>
           <TouchableOpacity
             style={[
               styles.textChatButton,
-              (loading || inFlight) && styles.disabledButton,
+              (loading || inFlight || outOfQuota || !locked) && styles.disabledButton,
             ]}
             onPress={() => setRightChatModal(true)}
-            disabled={loading || inFlight}
+            disabled={loading || inFlight || outOfQuota || !locked}
           >
-            <Ionicons name="chatbubble-ellipses-outline" size={20} color="#3b82f6" />
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={20}
+              color="#3b82f6"
+            />
             <Text style={styles.textChatLabel}>Text</Text>
           </TouchableOpacity>
         </View>
@@ -548,7 +473,9 @@ export default function HomeScreen() {
           <View style={styles.translationCard}>
             <Text style={styles.translationLabel}>Original</Text>
             <Text style={styles.translationText}>{translation.original}</Text>
-            <Text style={[styles.translationLabel, { marginTop: 12 }]}>Translated</Text>
+            <Text style={[styles.translationLabel, { marginTop: 12 }]}>
+              Translated
+            </Text>
             <Text style={styles.translationText}>{translation.translated}</Text>
           </View>
         </ScrollView>
@@ -564,12 +491,12 @@ export default function HomeScreen() {
           <Text style={styles.storeTitle}>Top-Up Bundles</Text>
           <FlatList
             data={products}
-            keyExtractor={(i) => i.productId}
+            keyExtractor={i => i.productId}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={[styles.storeItem, loading && styles.disabledButton]}
-                onPress={() => buyAddOn(item.productId)}
+                onPress={() => buyAddOn(item.plan)}
                 disabled={loading}
               >
                 <Text style={styles.storeName}>
@@ -598,7 +525,7 @@ export default function HomeScreen() {
         >
           <Pressable
             style={styles.modalContentContainer}
-            onPress={(e) => e.stopPropagation()}
+            onPress={e => e.stopPropagation()}
           >
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -658,7 +585,7 @@ export default function HomeScreen() {
         >
           <Pressable
             style={styles.modalContentContainer}
-            onPress={(e) => e.stopPropagation()}
+            onPress={e => e.stopPropagation()}
           >
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -709,27 +636,11 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
   quotaText: {
     margin: 16,
     fontSize: 16,
     width: '90%',
     textAlign: 'center',
-  },
-  buyMoreBtn: {
-    backgroundColor: '#fde047',
-    padding: 12,
-    borderRadius: 8,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  buyMoreText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
   },
   disabledButton: {
     opacity: 0.4,
@@ -765,8 +676,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   languageWrapper: {
-    width: ITEM_HEIGHT, // 100px wide
-    height: ITEM_HEIGHT, // 100px tall, no extra
+    width: ITEM_HEIGHT,
+    height: ITEM_HEIGHT,
     backgroundColor: '#ffffff',
     borderRadius: 16,
     justifyContent: 'center',
@@ -777,7 +688,7 @@ const styles = StyleSheet.create({
   pickerContainer: {
     flexDirection: 'column',
     alignItems: 'center',
-    width: ITEM_HEIGHT, // same as languageWrapper width
+    width: ITEM_HEIGHT,
     marginHorizontal: 8,
   },
   swapIcon: {
@@ -810,7 +721,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   translationCard: {
-    backgroundColor: '#fff9c4', // pale-yellow card
+    backgroundColor: '#fff9c4',
     padding: 20,
     borderRadius: 18,
   },
@@ -870,7 +781,7 @@ const styles = StyleSheet.create({
   modalContentContainer: {
     width: '90%',
     maxHeight: '80%',
-    backgroundColor: '#d0ebff', // pale-blue modal background
+    backgroundColor: '#d0ebff',
     borderRadius: 18,
     overflow: 'hidden',
   },
