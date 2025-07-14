@@ -2,15 +2,14 @@
   "cli": {
     "version": ">= 3.13.0"
   },
+  "projectRoot": "frontend",
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "projectRoot": "frontend"
+      "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
-      "projectRoot": "frontend"
+      "distribution": "internal"
     },
     "production": {
       "android": {
@@ -21,8 +20,7 @@
       },
       "env": {
         "BACKEND_URL": "https://nativo-backend.onrender.com"
-      },
-      "projectRoot": "frontend"
+      }
     }
   }
 }
